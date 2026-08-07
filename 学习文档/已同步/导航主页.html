@@ -113,8 +113,8 @@
     <h1>学习文档导航</h1>
     <p class="subtitle">技术知识库 · 个人学习笔记索引</p>
     <div class="stats">
-      <div class="stat"><span class="stat-number">11</span><span class="stat-label">篇文档</span></div>
-      <div class="stat"><span class="stat-number">7</span><span class="stat-label">个分类</span></div>
+      <div class="stat"><span class="stat-number">12</span><span class="stat-label">篇文档</span></div>
+      <div class="stat"><span class="stat-number">8</span><span class="stat-label">个分类</span></div>
       <div class="stat"><span class="stat-number date last-updated">2026-08-07</span><span class="stat-label">最后更新</span></div>
     </div>
   </section>
@@ -139,7 +139,7 @@
   </div>
 
   <footer class="footer">
-    <p>最后更新: <span class="last-updated">2026-08-07</span> · 共 11 篇文档 · 点击卡片打开文档</p>
+    <p>最后更新: <span class="last-updated">2026-08-07</span> · 共 12 篇文档 · 点击卡片打开文档</p>
     <p class="footer-ai">由 <a href="https://github.com/ThinkInAIXYZ/deepchat" target="_blank" rel="noopener">DeepChat</a> 生成 | 页面内容由 AI 生成，仅供参考</p>
   </footer>
 
@@ -153,7 +153,8 @@
       { id: 'engineering',  name: '构建与工程',     icon: '🔧', color: '#a78bfa' },
       { id: 'ai-agent',     name: 'AI 与 Agent',  icon: '🤖', color: '#4ade80' },
       { id: 'algorithm',    name: '算法',          icon: '📊', color: '#fb923c' },
-      { id: 'project',      name: '项目实战',       icon: '📋', color: '#f472b6' }
+      { id: 'project',      name: '项目实战',       icon: '📋', color: '#f472b6' },
+      { id: 'security',     name: '认证与安全',     icon: '🔐', color: '#06b6d4' }
     ];
 
     const documents = [
@@ -167,7 +168,8 @@
       { title: 'MCP 服务器两种实现方式对比分析', file: 'MCP两种实现方式对比分析.html', description: '底层 Server 与高层 McpServer 两种 MCP 服务器实现方式的完整对比学习文档', category: 'ai-agent', tags: ['MCP','Server','McpServer','对比分析','Tool'] },
       { title: 'MCP 协议与 Agent 集成学习梳理', file: 'MCP协议与Agent集成学习梳理.html', description: 'MCP 核心概念、通信机制、实现架构与三方职责边界的可独立学习文档', category: 'ai-agent', tags: ['MCP','Agent','通信机制','JSON-RPC','职责边界'] },
       { title: 'LeetCode Hot 100 算法复习笔记', file: 'hot100.html', description: '75 道高频算法题，15 个章节，含 AlgoPlayer 动画引擎的可交互学习笔记', category: 'algorithm', tags: ['LeetCode','算法','数据结构','动画','Hot100'] },
-      { title: '月度成本页面前后端完整实现报告', file: '月度成本页面前后端完整实现报告.html', description: '月度入库成本页面的业务链、前端实现、API 合同、状态机、日成本三源合并、Mongo 模型与从零复现的项目知识说明', category: 'project', tags: ['成本管理','前后端','API合同','状态机','MongoDB'] }
+      { title: '月度成本页面前后端完整实现报告', file: '月度成本页面前后端完整实现报告.html', description: '月度入库成本页面的业务链、前端实现、API 合同、状态机、日成本三源合并、Mongo 模型与从零复现的项目知识说明', category: 'project', tags: ['成本管理','前后端','API合同','状态机','MongoDB'] },
+      { title: 'JWT 鉴权学习梳理', file: 'jwt-authentication-knowledge.html', description: 'JWT 无状态鉴权核心原理：结构、生成、验签、Base64Url 编码与 HMAC-SHA256 签名', category: 'security', tags: ['JWT','HMAC-SHA256','Base64Url','鉴权','AuthFilter','令牌'] }
     ];
 
     let activeCategory = 'all';
