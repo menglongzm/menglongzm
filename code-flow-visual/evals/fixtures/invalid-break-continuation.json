@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "非法断链示例",
+    "summary": "用于确认断链之后继续虚构节点会被校验器拒绝。",
+    "roots": [{ "path": "fixtures/web", "role": "frontend" }]
+  },
+  "scope": {
+    "type": "feature",
+    "coverage": "partial",
+    "discoveryComplete": false,
+    "counts": { "endpoints": { "discovered": 1, "traced": 1 } },
+    "selectionBasis": "测试反例",
+    "omitted": []
+  },
+  "flows": [
+    {
+      "id": "invalid-break",
+      "title": "POST /unknown",
+      "status": "broken",
+      "entryNodeId": "request",
+      "nodes": [
+        {
+          "id": "request",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "sendUnknown",
+          "role": "发出请求",
+          "http": { "method": "POST", "url": "/unknown", "params": [] },
+          "result": { "type": "Promise<unknown>" },
+          "evidence": [{ "path": "src/api.ts", "line": 1, "basis": "confirmed" }]
+        },
+        {
+          "id": "break",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Boundary",
+          "symbol": "unknown backend",
+          "role": "目标不可静态确定",
+          "result": { "type": "unknown" },
+          "break": { "phase": "request", "reason": "动态路由", "knownNext": "候选后端未知" },
+          "evidence": [{ "path": "src/api.ts", "line": 2, "basis": "runtime-unknown" }]
+        },
+        {
+          "id": "invented-controller",
+          "depth": 2,
+          "lane": "request",
+          "kind": "controller",
+          "layer": "Controller",
+          "symbol": "InventedController.run",
+          "signature": "Object run()",
+          "role": "这是不应出现的臆造节点",
+          "params": [],
+          "result": { "type": "Object" },
+          "evidence": [{ "path": "unknown", "line": 1, "basis": "runtime-unknown" }]
+        }
+      ],
+      "edges": [
+        {
+          "id": "to-break",
+          "from": "request",
+          "to": "break",
+          "direction": "request",
+          "order": 0,
+          "label": "unknown",
+          "evidence": [{ "path": "src/api.ts", "line": 2, "basis": "confirmed" }]
+        },
+        {
+          "id": "illegal-continuation",
+          "from": "break",
+          "to": "invented-controller",
+          "direction": "request",
+          "order": 1,
+          "label": "invented",
+          "call": { "arguments": [] },
+          "evidence": [{ "path": "unknown", "line": 1, "basis": "runtime-unknown" }]
+        }
+      ]
+    }
+  ]
+}

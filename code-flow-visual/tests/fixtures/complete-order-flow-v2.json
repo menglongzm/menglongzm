@@ -1,0 +1,422 @@
+{
+  "version": 2,
+  "meta": {
+    "title": "创建订单调用链",
+    "summary": "订单表单经 Controller、两个 Service 和 Repository 写入订单及明细，再返回 OrderView。",
+    "roots": [
+      { "path": "fixtures/order-web", "role": "frontend" },
+      { "path": "fixtures/order-api", "role": "backend" }
+    ]
+  },
+  "scope": {
+    "type": "feature",
+    "coverage": "complete",
+    "discoveryComplete": true,
+    "counts": {
+      "endpoints": { "discovered": 1, "traced": 1 }
+    },
+    "selectionBasis": "用户指定 POST /api/orders",
+    "omitted": []
+  },
+  "flows": [
+    {
+      "id": "create-order",
+      "title": "POST /api/orders",
+      "status": "complete",
+      "entryNodeId": "submit-order",
+      "responseNodeId": "http-response",
+      "selectionReason": "用户指定的订单创建主流程",
+      "nodes": [
+        {
+          "id": "submit-order",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "submitOrder",
+          "role": "把结算页表单作为 JSON 发往订单接口",
+          "http": {
+            "method": "POST",
+            "url": "/api/orders",
+            "params": [
+              { "name": "items", "in": "body", "type": "OrderItemInput[]", "meaning": "待购买商品与数量" }
+            ]
+          },
+          "result": { "type": "Promise<ApiResult<OrderView>>", "source": "response-body" },
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 14, "symbol": "submitOrder", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-controller",
+          "depth": 1,
+          "lane": "request",
+          "kind": "controller",
+          "layer": "Controller",
+          "symbol": "OrderController.create",
+          "signature": "Result<OrderView> create(CreateOrderRequest request, Principal principal)",
+          "role": "绑定请求体和当前用户，并调用订单服务",
+          "params": [
+            { "name": "request", "type": "CreateOrderRequest", "source": "request body", "meaning": "订单创建参数" },
+            { "name": "principal", "type": "Principal", "source": "security context", "meaning": "当前登录用户" }
+          ],
+          "result": { "type": "Result<OrderView>", "source": "in-memory-object" },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderController.java", "line": 27, "symbol": "OrderController.create", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-service",
+          "depth": 2,
+          "lane": "request",
+          "kind": "service",
+          "layer": "Service",
+          "symbol": "OrderService.create",
+          "signature": "OrderAggregate create(long userId, CreateOrderCommand command)",
+          "role": "编排库存校验、金额计算和订单持久化事务",
+          "params": [
+            { "name": "userId", "type": "long", "source": "principal.userId", "meaning": "下单用户 ID" },
+            { "name": "command", "type": "CreateOrderCommand", "source": "request.toCommand()", "meaning": "标准化后的下单命令" }
+          ],
+          "result": { "type": "OrderAggregate", "source": "in-memory-object", "consumed": "order-controller-return" },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderService.java", "line": 41, "symbol": "OrderService.create", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "inventory-service",
+          "depth": 3,
+          "lane": "request",
+          "kind": "service",
+          "layer": "Service",
+          "symbol": "InventoryService.reserve",
+          "signature": "Reservation reserve(List<OrderItemCommand> items)",
+          "role": "校验库存并生成本次订单的预占结果",
+          "params": [
+            { "name": "items", "type": "List<OrderItemCommand>", "source": "command.items", "meaning": "订单明细命令" }
+          ],
+          "result": { "type": "Reservation", "source": "in-memory-object", "consumed": "order-repository" },
+          "evidence": [
+            { "path": "src/main/java/demo/InventoryService.java", "line": 33, "symbol": "InventoryService.reserve", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-repository",
+          "depth": 4,
+          "lane": "request",
+          "kind": "data-access",
+          "layer": "Data Access",
+          "symbol": "OrderRepository.insert",
+          "signature": "OrderAggregate insert(OrderDraft draft, Reservation reservation)",
+          "role": "在同一事务中写入订单主表和明细表",
+          "params": [
+            { "name": "draft", "type": "OrderDraft", "source": "OrderDraft.of(userId, command)", "meaning": "待持久化订单" },
+            { "name": "reservation", "type": "Reservation", "source": "inventoryService.reserve(...) result", "meaning": "库存预占结果" }
+          ],
+          "result": { "type": "OrderAggregate", "source": "affected-row-count", "consumed": "order-service-return" },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderRepository.java", "line": 52, "symbol": "OrderRepository.insert", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "orders-db-insert",
+          "depth": 5,
+          "lane": "turnaround",
+          "kind": "database",
+          "layer": "Database",
+          "symbol": "orders INSERT",
+          "role": "写入订单主表",
+          "result": { "type": "int", "source": "affected-row-count" },
+          "database": {
+            "system": "PostgreSQL/order_db",
+            "table": "orders",
+            "operation": "INSERT",
+            "criteria": "写入 user_id/status/total",
+            "returnsRows": false
+          },
+          "evidence": [
+            { "path": "src/main/resources/mapper/OrderMapper.xml", "line": 12, "symbol": "insert", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-items-db-insert",
+          "depth": 5,
+          "lane": "turnaround",
+          "kind": "database",
+          "layer": "Database",
+          "symbol": "order_items INSERT",
+          "role": "写入订单明细表",
+          "result": { "type": "int", "source": "affected-row-count" },
+          "database": {
+            "system": "PostgreSQL/order_db",
+            "table": "order_items",
+            "operation": "INSERT",
+            "criteria": "写入 order_id/product_id/qty",
+            "returnsRows": false
+          },
+          "evidence": [
+            { "path": "src/main/resources/mapper/OrderItemMapper.xml", "line": 8, "symbol": "insertBatch", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-entity-return",
+          "depth": 4,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "ORM映射",
+          "role": "把插入结果回填到 OrderAggregate",
+          "result": { "type": "OrderAggregate", "source": "in-memory-object" },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderRepository.java", "line": 58, "symbol": "OrderRepository.insert", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "order-view-return",
+          "depth": 3,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "OrderAssembler.toView",
+          "role": "把聚合根映射为前端展示对象",
+          "result": { "type": "OrderView", "source": "in-memory-object" },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderAssembler.java", "line": 19, "symbol": "OrderAssembler.toView", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "result-wrapper-return",
+          "depth": 2,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "Result.success",
+          "role": "包装为统一响应结构",
+          "result": { "type": "Result<OrderView>", "source": "in-memory-object" },
+          "evidence": [
+            { "path": "src/main/java/demo/Result.java", "line": 15, "symbol": "Result.success", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "http-response",
+          "depth": 1,
+          "lane": "return",
+          "kind": "response",
+          "layer": "HTTP Response",
+          "symbol": "201 Created",
+          "role": "返回 JSON 响应",
+          "result": { "type": "HTTP 201", "source": "response-body" },
+          "response": {
+            "status": 201,
+            "contentType": "application/json",
+            "bodyShape": "{code, message, data: {id, status, total}}"
+          },
+          "evidence": [
+            { "path": "src/main/java/demo/OrderController.java", "line": 30, "symbol": "OrderController.create", "basis": "confirmed" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "from": "submit-order",
+          "to": "order-controller",
+          "direction": "request",
+          "order": 1,
+          "label": "POST /api/orders",
+          "call": {
+            "arguments": [
+              { "parameter": "request", "expression": "body" },
+              { "parameter": "principal", "expression": "securityContext.principal" }
+            ]
+          },
+          "evidence": [{ "path": "src/api/orders.ts", "line": 16, "basis": "confirmed" }]
+        },
+        {
+          "id": "e2",
+          "from": "order-controller",
+          "to": "order-service",
+          "direction": "request",
+          "order": 2,
+          "label": "userId + command",
+          "call": {
+            "arguments": [
+              { "parameter": "userId", "expression": "principal.userId" },
+              { "parameter": "command", "expression": "request.toCommand()" }
+            ]
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderController.java", "line": 28, "basis": "confirmed" }]
+        },
+        {
+          "id": "e3",
+          "from": "order-service",
+          "to": "inventory-service",
+          "direction": "request",
+          "order": 3,
+          "label": "items",
+          "call": {
+            "arguments": [
+              { "parameter": "items", "expression": "command.items" }
+            ]
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderService.java", "line": 43, "basis": "confirmed" }]
+        },
+        {
+          "id": "e4",
+          "from": "order-service",
+          "to": "order-repository",
+          "direction": "request",
+          "order": 4,
+          "label": "draft + reservation",
+          "call": {
+            "arguments": [
+              { "parameter": "draft", "expression": "OrderDraft.of(userId, command)" },
+              { "parameter": "reservation", "expression": "inventoryService.reserve(...)" }
+            ]
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderService.java", "line": 45, "basis": "confirmed" }]
+        },
+        {
+          "id": "e5",
+          "from": "order-repository",
+          "to": "orders-db-insert",
+          "direction": "request",
+          "order": 5,
+          "label": "INSERT orders",
+          "call": { "arguments": [] },
+          "evidence": [{ "path": "src/main/java/demo/OrderRepository.java", "line": 53, "basis": "confirmed" }]
+        },
+        {
+          "id": "e6",
+          "from": "order-repository",
+          "to": "order-items-db-insert",
+          "direction": "request",
+          "order": 6,
+          "label": "INSERT order_items",
+          "call": { "arguments": [] },
+          "evidence": [{ "path": "src/main/java/demo/OrderRepository.java", "line": 55, "basis": "confirmed" }]
+        },
+        {
+          "id": "e7",
+          "from": "orders-db-insert",
+          "to": "order-entity-return",
+          "direction": "return",
+          "order": 1,
+          "label": "affected rows -> Entity",
+          "transform": {
+            "before": "int (affected rows)",
+            "after": "OrderAggregate",
+            "action": "ORM 回填主键到内存对象"
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderRepository.java", "line": 58, "basis": "confirmed" }]
+        },
+        {
+          "id": "e7b",
+          "from": "order-items-db-insert",
+          "to": "order-entity-return",
+          "direction": "return",
+          "order": 1,
+          "label": "affected rows -> Entity",
+          "transform": {
+            "before": "int (affected rows)",
+            "after": "OrderAggregate",
+            "action": "明细写入完成，聚合返回"
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderRepository.java", "line": 59, "basis": "confirmed" }]
+        },
+        {
+          "id": "e8",
+          "from": "order-entity-return",
+          "to": "order-view-return",
+          "direction": "return",
+          "order": 2,
+          "label": "Entity -> View",
+          "transform": {
+            "before": "OrderAggregate",
+            "after": "OrderView",
+            "action": "映射公开字段并格式化金额"
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderAssembler.java", "line": 19, "basis": "confirmed" }]
+        },
+        {
+          "id": "e9",
+          "from": "order-view-return",
+          "to": "result-wrapper-return",
+          "direction": "return",
+          "order": 3,
+          "label": "View -> Result",
+          "transform": {
+            "before": "OrderView",
+            "after": "Result<OrderView>",
+            "action": "包装为统一响应结构"
+          },
+          "evidence": [{ "path": "src/main/java/demo/Result.java", "line": 15, "basis": "confirmed" }]
+        },
+        {
+          "id": "e10",
+          "from": "result-wrapper-return",
+          "to": "http-response",
+          "direction": "return",
+          "order": 4,
+          "label": "Result -> HTTP 201",
+          "transform": {
+            "before": "Result<OrderView>",
+            "after": "HTTP 201 JSON",
+            "action": "序列化为 JSON 并设置状态码"
+          },
+          "evidence": [{ "path": "src/main/java/demo/OrderController.java", "line": 30, "basis": "confirmed" }]
+        }
+      ],
+      "paths": [
+        {
+          "id": "success",
+          "label": "正常创建",
+          "condition": null,
+          "steps": [
+            { "nodeId": "submit-order", "edgeId": null },
+            { "nodeId": "order-controller", "edgeId": "e1" },
+            { "nodeId": "order-service", "edgeId": "e2" },
+            { "nodeId": "inventory-service", "edgeId": "e3" },
+            { "nodeId": "order-repository", "edgeId": "e4" },
+            { "nodeId": "orders-db-insert", "edgeId": "e5" },
+            { "nodeId": "order-items-db-insert", "edgeId": "e6" },
+            { "nodeId": "order-entity-return", "edgeId": "e7" },
+            { "nodeId": "order-view-return", "edgeId": "e8" },
+            { "nodeId": "result-wrapper-return", "edgeId": "e9" },
+            { "nodeId": "http-response", "edgeId": "e10" }
+          ],
+          "terminalNodeId": "http-response",
+          "dbOperationCount": 2
+        },
+        {
+          "id": "success-items-return",
+          "label": "明细返回路径",
+          "condition": "order_items INSERT 完成后返回",
+          "steps": [
+            { "nodeId": "submit-order", "edgeId": null },
+            { "nodeId": "order-controller", "edgeId": "e1" },
+            { "nodeId": "order-service", "edgeId": "e2" },
+            { "nodeId": "order-repository", "edgeId": "e4" },
+            { "nodeId": "order-items-db-insert", "edgeId": "e6" },
+            { "nodeId": "order-entity-return", "edgeId": "e7b" },
+            { "nodeId": "order-view-return", "edgeId": "e8" },
+            { "nodeId": "result-wrapper-return", "edgeId": "e9" },
+            { "nodeId": "http-response", "edgeId": "e10" }
+          ],
+          "terminalNodeId": "http-response",
+          "dbOperationCount": 1
+        }
+      ],
+      "transactions": [
+        {
+          "id": "order-tx",
+          "entryNodeId": "order-service",
+          "memberNodeIds": ["order-repository", "orders-db-insert", "order-items-db-insert"],
+          "outsideTxNodeIds": [],
+          "commitPointNodeId": "order-entity-return",
+          "rollbackConditions": ["InventoryException", "DataIntegrityViolationException"]
+        }
+      ]
+    }
+  ]
+}

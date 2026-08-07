@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "meta": {
+    "title": "断链后臆造下游（反例）",
+    "summary": "断链节点后不应有出向边或臆造节点",
+    "roots": [
+      { "path": "fixtures/web", "role": "frontend" }
+    ]
+  },
+  "scope": {
+    "type": "feature",
+    "coverage": "partial",
+    "discoveryComplete": false,
+    "counts": {
+      "endpoints": { "discovered": 1, "traced": 1 }
+    },
+    "selectionBasis": "后端不可读，仅前端可分析",
+    "omitted": []
+  },
+  "flows": [
+    {
+      "id": "broken-flow",
+      "title": "POST /api/report/export",
+      "status": "broken",
+      "entryNodeId": "export-request",
+      "selectionReason": "用户指定",
+      "nodes": [
+        {
+          "id": "export-request",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "exportReport",
+          "role": "发起导出请求",
+          "http": {
+            "method": "POST",
+            "url": "/api/report/export",
+            "params": [
+              { "name": "format", "in": "query", "type": "string", "meaning": "导出格式" }
+            ]
+          },
+          "result": { "type": "unknown", "source": "unknown" },
+          "evidence": [
+            { "path": "src/api/report.ts", "line": 10, "symbol": "exportReport", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "gateway-break",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Gateway",
+          "symbol": "动态网关路由",
+          "role": "后端在不可读仓库，网关地址运行时配置",
+          "result": { "type": "unknown", "source": "unknown" },
+          "break": {
+            "phase": "request",
+            "reason": "Controller 位于不可读后端仓库",
+            "knownNext": "POST /api/report/export，经运行时网关路由"
+          },
+          "evidence": [
+            { "path": "src/api/report.ts", "line": 12, "basis": "runtime-unknown" }
+          ]
+        },
+        {
+          "id": "invented-controller",
+          "depth": 2,
+          "lane": "request",
+          "kind": "controller",
+          "layer": "Controller",
+          "symbol": "InventedController.export",
+          "signature": "void export(ExportRequest req)",
+          "role": "臆造的 Controller",
+          "params": [
+            { "name": "req", "type": "ExportRequest", "source": "body", "meaning": "导出请求" }
+          ],
+          "result": { "type": "void", "source": "unknown" },
+          "evidence": [
+            { "path": "unknown", "line": 1, "basis": "runtime-unknown" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "from": "export-request",
+          "to": "gateway-break",
+          "direction": "request",
+          "order": 1,
+          "label": "POST",
+          "call": { "arguments": [] },
+          "evidence": [{ "path": "src/api/report.ts", "line": 11, "basis": "confirmed" }]
+        },
+        {
+          "id": "e2",
+          "from": "gateway-break",
+          "to": "invented-controller",
+          "direction": "request",
+          "order": 2,
+          "label": "臆造调用",
+          "call": { "arguments": [{ "parameter": "req", "expression": "body" }] },
+          "evidence": [{ "path": "unknown", "line": 1, "basis": "runtime-unknown" }]
+        }
+      ],
+      "paths": [
+        {
+          "id": "main",
+          "label": "断链",
+          "condition": null,
+          "steps": [
+            { "nodeId": "export-request", "edgeId": null },
+            { "nodeId": "gateway-break", "edgeId": "e1" },
+            { "nodeId": "invented-controller", "edgeId": "e2" }
+          ],
+          "terminalNodeId": "invented-controller",
+          "dbOperationCount": 0
+        }
+      ]
+    }
+  ]
+}

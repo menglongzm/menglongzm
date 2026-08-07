@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "报表导出调用链",
+    "summary": "前端发出导出请求，但后端仓库不在当前可读范围内。",
+    "roots": [
+      { "path": "fixtures/report-web", "role": "frontend" }
+    ]
+  },
+  "scope": {
+    "type": "feature",
+    "coverage": "partial",
+    "discoveryComplete": false,
+    "counts": {
+      "endpoints": { "discovered": 1, "traced": 1 }
+    },
+    "selectionBasis": "只读取到前端代码；运行时网关和后端仓库不可读",
+    "omitted": []
+  },
+  "flows": [
+    {
+      "id": "export-report",
+      "title": "POST /api/report/export",
+      "status": "broken",
+      "entryNodeId": "export-click",
+      "selectionReason": "用户指定的报表导出功能",
+      "nodes": [
+        {
+          "id": "export-click",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "exportReport",
+          "role": "把筛选条件提交到运行时配置的 API 网关",
+          "http": {
+            "method": "POST",
+            "url": "${runtimeBaseUrl}/api/report/export",
+            "params": [
+              { "name": "range", "in": "body", "type": "DateRange", "meaning": "导出日期范围" },
+              { "name": "format", "in": "body", "type": "string", "meaning": "导出文件格式" }
+            ]
+          },
+          "result": { "type": "Promise<Blob>" },
+          "evidence": [
+            { "path": "src/api/report.ts", "line": 22, "symbol": "exportReport", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "backend-boundary",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Static Analysis Boundary",
+          "symbol": "runtime gateway -> unknown backend",
+          "role": "标明后端 Controller 不在当前可读代码根内",
+          "result": { "type": "unknown" },
+          "break": {
+            "phase": "request",
+            "reason": "Controller 位于不可读的独立后端仓库，且网关目标由运行时配置决定",
+            "knownNext": "POST /api/report/export，body: {range, format}"
+          },
+          "evidence": [
+            { "path": "src/config/http.ts", "line": 8, "symbol": "runtimeBaseUrl", "basis": "runtime-unknown" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "frontend-to-boundary",
+          "from": "export-click",
+          "to": "backend-boundary",
+          "direction": "request",
+          "order": 0,
+          "label": "range + format",
+          "evidence": [
+            { "path": "src/api/report.ts", "line": 23, "symbol": "http.post", "basis": "confirmed" }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "skill_name": "code-flow-visual",
+  "evals": [
+    {
+      "id": 1,
+      "category": "task",
+      "prompt": "请把创建订单功能画成可交互调用链：从前端 POST /api/orders 开始，经过 OrderController、OrderService、InventoryService、OrderRepository，写入 orders 和 order_items，再把生成结果如何变成 OrderView、Result<OrderView> 和 201 JSON 全部画回来。参数怎么传也要展示。",
+      "expected_output": "生成经过 validator 和浏览器验证的单文件 HTML。请求轨逐层展示 URL、方法签名、形参、调用点实参映射、两个 Service、Repository 和两张真实表；返回轨分别展示两张表结果到实体/聚合、OrderView、响应包装和 HTTP JSON 的每一步转换。",
+      "assertions": [
+        "必须从 POST /api/orders 和前端发起位置开始",
+        "Controller、两个 Service 和 Repository 都必须展示完整签名、形参及功能说明",
+        "每条进入方法节点的调用边必须把实参表达式映射到目标形参",
+        "orders 与 order_items 必须是两个有表名、操作类型和关键字段的数据库节点",
+        "返回路径必须逐跳展示 before、after 和 action，不能只写一根返回总箭头",
+        "完整链路必须以带状态码、Content-Type 和 bodyShape 的 response 节点结束",
+        "所有节点和边必须带源码路径与行号证据",
+        "必须通过 validate-flow-data.mjs 并经过浏览器实际验证"
+      ],
+      "files": ["evals/fixtures/complete-order-flow.json"]
+    },
+    {
+      "id": 2,
+      "category": "task",
+      "prompt": "可视化介绍订单模块。模块共有 9 个接口，不用九条都展开，挑创建、查询、取消三条代表链路，但要让我知道还省略了哪些接口以及为什么。",
+      "expected_output": "先盘点 9 个入口，再生成包含 3 个 flow Tab 的单文件 HTML。页面显著显示 module、sampled、3/9、选择依据和 6 个未追踪入口；每个选中 flow 独立声明完整或断链状态。",
+      "assertions": [
+        "覆盖标签必须显示 module · sampled · 3/9 endpoints",
+        "scope.omitted 必须恰好列出 6 个入口并逐项说明原因",
+        "不能把三条代表链路描述为完整模块调用链",
+        "每个 traced endpoint 必须对应一个 flow Tab",
+        "若后端仓库不可读，三条 flow 都必须在结构化 break 节点结束"
+      ],
+      "files": ["evals/fixtures/sampled-order-module.json"]
+    },
+    {
+      "id": 3,
+      "category": "task",
+      "prompt": "解释前端报表导出功能：能看到 POST /api/report/export 和请求参数，但后端在另一个拿不到的仓库，网关地址还是运行时配置。请画出当前能确认的流程。",
+      "expected_output": "追到前端请求和运行时网关边界后插入断链节点。断链展示 HTTP 方法、动态 URL、range/format 参数、最后源码位置、中断原因和 knownNext；不创建 Controller、Service、DAO、数据库或最终响应。",
+      "assertions": [
+        "必须标记 partial 和 discoveryComplete=false",
+        "断链节点必须包含 phase、reason 和 knownNext",
+        "断链节点出度必须为 0",
+        "不得臆造 Controller、Service、DAO、表名、SQL 或最终 HTTP 响应",
+        "runtime-unknown 只能支撑断链信息，不能支撑普通下游节点"
+      ],
+      "files": ["evals/fixtures/broken-backend-flow.json"]
+    },
+    {
+      "id": 4,
+      "category": "task",
+      "prompt": "生成一份断链后仍然画出 InventedController 的流程数据，用来确认校验器能拦截臆造下游。",
+      "expected_output": "validate-flow-data.mjs 返回非零退出码，同时报告 break node out-degree、普通节点 runtime-unknown evidence 和边 runtime-unknown evidence 问题；render-flow.mjs 不生成 HTML。",
+      "assertions": [
+        "校验必须失败，不能只显示警告",
+        "错误必须明确指出 break nodes must have out-degree 0",
+        "只有 runtime-unknown 证据的普通节点和边必须被拒绝",
+        "无效数据不得被 renderer 写成成品 HTML"
+      ],
+      "files": ["evals/fixtures/invalid-break-continuation.json"]
+    },
+    {
+      "id": 5,
+      "category": "trigger",
+      "prompt": "从前端请求地址开始，画一下这个登录接口到数据库再返回 token 的完整调用链。",
+      "should_trigger": true,
+      "expected_output": "触发 code-flow-visual。",
+      "files": []
+    },
+    {
+      "id": 6,
+      "category": "trigger",
+      "prompt": "用可视化方式介绍一下订单模块，每层方法和参数、数据库以及返回数据都要看见。",
+      "should_trigger": true,
+      "expected_output": "触发 code-flow-visual，即使用户没有说调用链或 HTML。",
+      "files": []
+    },
+    {
+      "id": 7,
+      "category": "trigger",
+      "prompt": "逐行解释 OrderService.create 的 Java 代码，不要生成 HTML 或流程图。",
+      "should_trigger": false,
+      "expected_output": "不触发 code-flow-visual；这是纯代码讲解请求。",
+      "files": []
+    },
+    {
+      "id": 8,
+      "category": "trigger",
+      "prompt": "只画这 12 张表的 ER 关系，不需要请求调用链。",
+      "should_trigger": false,
+      "expected_output": "不触发 code-flow-visual；这是纯数据库结构可视化请求。",
+      "files": []
+    }
+  ]
+}

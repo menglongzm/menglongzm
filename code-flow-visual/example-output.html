@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>调用链可视化</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef1f5;
+      --surface: #ffffff;
+      --surface-2: #f7f8fa;
+      --text: #17202a;
+      --muted: #596575;
+      --border: #c8d0da;
+      --rule: #d9dfe7;
+      --request: #b84a12;
+      --request-soft: #fff0e7;
+      --return: #087f6d;
+      --return-soft: #e7f6f2;
+      --warn: #b42318;
+      --warn-soft: #fff0ee;
+      --focus: #1d5fd0;
+      --shadow: 0 8px 24px rgb(34 48 69 / 9%);
+      --radius: 6px;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #171b20;
+      --surface: #20262d;
+      --surface-2: #272e36;
+      --text: #edf1f5;
+      --muted: #a9b4c0;
+      --border: #46515d;
+      --rule: #343d47;
+      --request: #ff9a62;
+      --request-soft: #3d291f;
+      --return: #62d5bd;
+      --return-soft: #183b35;
+      --warn: #ff8f86;
+      --warn-soft: #422624;
+      --focus: #7cb0ff;
+      --shadow: 0 8px 28px rgb(0 0 0 / 25%);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.62 "Segoe UI", "Microsoft YaHei", sans-serif;
+      letter-spacing: 0;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    code, .mono {
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    .app { min-height: 100vh; }
+    .masthead {
+      padding: 28px clamp(18px, 4vw, 56px) 22px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .masthead-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    .eyebrow {
+      margin: 0 0 5px;
+      color: var(--muted);
+      font: 600 12px/1.4 "Cascadia Code", Consolas, monospace;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      max-width: 900px;
+      font-size: 38px;
+      line-height: 1.18;
+      font-weight: 700;
+      letter-spacing: 0;
+      overflow-wrap: break-word;
+    }
+    .summary {
+      max-width: 960px;
+      margin: 13px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 38px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .icon-button:hover { border-color: var(--focus); }
+    .scope-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font: 600 12px/1.3 "Cascadia Code", Consolas, monospace;
+    }
+    .badge.coverage-sampled, .badge.coverage-partial {
+      border-color: var(--warn);
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+    .coverage-panel {
+      display: grid;
+      grid-template-columns: minmax(180px, .7fr) minmax(260px, 1.5fr);
+      gap: 22px;
+      padding: 18px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .coverage-panel h2, .omissions h2 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .coverage-panel p { margin: 0; color: var(--muted); }
+    .tabs {
+      display: flex;
+      gap: 6px;
+      padding: 14px clamp(18px, 4vw, 56px) 0;
+      overflow-x: auto;
+    }
+    .tab {
+      flex: 0 0 auto;
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-bottom-color: transparent;
+      border-radius: var(--radius) var(--radius) 0 0;
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .tab[aria-selected="true"] {
+      background: var(--surface);
+      color: var(--focus);
+      border-color: var(--focus);
+      border-bottom-color: var(--surface);
+      font-weight: 700;
+    }
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px clamp(18px, 4vw, 56px);
+      border-block: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 94%, transparent);
+      backdrop-filter: blur(10px);
+    }
+    .toolbar .divider { width: 1px; height: 26px; margin: 0 3px; background: var(--border); }
+    .track-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 4px 9px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .track-toggle input { accent-color: var(--focus); }
+    .track-key { width: 22px; height: 0; border-top: 3px solid var(--request); }
+    .track-key.return { border-top-color: var(--return); border-top-style: dashed; }
+    .flow-shell { padding: 24px clamp(12px, 3vw, 44px) 40px; }
+    .flow-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      max-width: 1500px;
+      margin: 0 auto 14px;
+    }
+    .flow-heading h2 { margin: 0; font-size: 20px; }
+    .flow-heading p { margin: 3px 0 0; color: var(--muted); }
+    .status {
+      flex: 0 0 auto;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--return-soft);
+      color: var(--return);
+      font-weight: 700;
+    }
+    .status.broken { background: var(--warn-soft); color: var(--warn); }
+    .flow-map {
+      position: relative;
+      max-width: 1500px;
+      min-width: 930px;
+      margin: 0 auto;
+      padding: 0 18px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--request-soft) 58%, transparent) 0 48.8%, transparent 48.8% 51.2%, color-mix(in srgb, var(--return-soft) 58%, transparent) 51.2% 100%),
+        var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .map-scroll { overflow-x: auto; padding-bottom: 2px; }
+    .lane-headings, .flow-row {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 92px minmax(310px, 1fr) 76px minmax(310px, 1fr);
+      gap: 18px;
+    }
+    .lane-headings {
+      align-items: end;
+      min-height: 58px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-title {
+      padding: 13px 0 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .lane-title.request { grid-column: 2; color: var(--request); }
+    .lane-title.return { grid-column: 4; color: var(--return); }
+    .flow-row {
+      min-height: 174px;
+      align-items: center;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .flow-row:last-of-type { border-bottom: 0; }
+    .layer-label {
+      grid-column: 1;
+      align-self: start;
+      padding-top: 7px;
+      color: var(--muted);
+      font: 700 12px/1.35 "Cascadia Code", Consolas, monospace;
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
+    }
+    .node-stack { display: grid; gap: 12px; }
+    .node-stack.request { grid-column: 2; }
+    .node-stack.return { grid-column: 4; }
+    .node-stack.turnaround { grid-column: 2 / 5; justify-self: center; width: min(560px, 70%); }
+    .node-card {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      padding: 15px 16px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--request);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 3px 10px rgb(31 43 58 / 7%);
+      text-align: left;
+      cursor: pointer;
+      transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+      overflow-wrap: break-word;
+    }
+    .node-card[data-lane="return"] { border-left-color: var(--return); }
+    .node-card[data-lane="turnaround"] { border-left-color: var(--focus); }
+    .node-card[data-kind="break"] {
+      border-style: dashed;
+      border-color: var(--warn);
+      background: var(--warn-soft);
+    }
+    .node-card:hover { border-color: var(--focus); }
+    .node-card.active {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent), var(--shadow);
+      transform: translateY(-2px);
+    }
+    .node-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .kind {
+      color: var(--muted);
+      font: 700 12px/1.3 "Cascadia Code", Consolas, monospace;
+      text-transform: uppercase;
+    }
+    .expand-mark { color: var(--muted); font-weight: 700; }
+    .node-symbol {
+      display: block;
+      margin-top: 6px;
+      font: 700 14px/1.45 "Cascadia Code", Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+    .signature { margin: 4px 0 0; color: var(--muted); font: 12px/1.5 "Cascadia Code", Consolas, monospace; overflow-wrap: anywhere; }
+    .role { margin: 9px 0 0; color: var(--text); }
+    .node-detail { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .node-card.open .node-detail { display: block; }
+    .detail-section + .detail-section { margin-top: 12px; }
+    .detail-section h3 { margin: 0 0 5px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+    .detail-section p { margin: 0; }
+    .params { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+    .params th, .params td { padding: 6px; border: 1px solid var(--border); vertical-align: top; overflow-wrap: break-word; }
+    .params th { background: var(--surface-2); text-align: left; }
+    .params th:nth-child(1) { width: 22%; }
+    .params th:nth-child(2) { width: 24%; }
+    .params th:nth-child(3) { width: 54%; }
+    .evidence-list { margin: 0; padding-left: 18px; color: var(--muted); }
+    .edge-notes { display: grid; gap: 7px; }
+    .edge-note { padding: 8px 9px; border-left: 3px solid var(--request); background: var(--request-soft); }
+    .edge-note.return { border-left-color: var(--return); background: var(--return-soft); }
+    .edge-note code { display: block; margin-top: 3px; font-size: 12px; }
+    .connectors { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+    .edge-path { fill: none; stroke: var(--request); stroke-width: 2.2; marker-end: url(#arrow-request); }
+    .edge-path.return { stroke: var(--return); stroke-dasharray: 7 5; marker-end: url(#arrow-return); }
+    .edge-path.branch { stroke: var(--muted); stroke-width: 1.7; stroke-dasharray: 3 5; marker-end: url(#arrow-branch); }
+    .edge-path.spawn { stroke: var(--focus); stroke-width: 1.7; stroke-dasharray: 2 4; marker-end: url(#arrow-spawn); }
+    .edge-path.active { stroke-width: 4; filter: drop-shadow(0 0 3px currentColor); }
+    .path-selector { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .path-selector label { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 3px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); cursor: pointer; font-size: 12px; }
+    .path-selector input { accent-color: var(--focus); }
+    .path-selector label.active { border-color: var(--focus); color: var(--focus); font-weight: 700; }
+    .edge-label rect { fill: var(--surface); stroke: var(--border); rx: 4; }
+    .edge-label text { fill: var(--muted); font: 600 12px "Segoe UI", "Microsoft YaHei", sans-serif; }
+    .omissions {
+      max-width: 1500px;
+      margin: 22px auto 0;
+      padding: 17px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .omissions table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .omissions th, .omissions td { padding: 8px; border-bottom: 1px solid var(--rule); text-align: left; overflow-wrap: break-word; }
+    .empty { color: var(--muted); }
+    .track-request-hidden .node-stack.request, .track-request-hidden .lane-title.request, .track-request-hidden .edge-path.request, .track-request-hidden .edge-label.request { visibility: hidden; }
+    .track-return-hidden .node-stack.return, .track-return-hidden .lane-title.return, .track-return-hidden .edge-path.return, .track-return-hidden .edge-label.return { visibility: hidden; }
+    .fatal {
+      margin: 40px auto;
+      max-width: 760px;
+      padding: 20px;
+      border: 1px solid var(--warn);
+      background: var(--warn-soft);
+      color: var(--warn);
+    }
+    button:focus-visible, input:focus-visible, .node-card:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    @media (max-width: 720px) {
+      .masthead { padding-top: 20px; }
+      h1 { font-size: 28px; }
+      .coverage-panel { grid-template-columns: 1fr; gap: 10px; }
+      .toolbar { position: static; }
+      .flow-shell { padding-inline: 10px; }
+      .flow-heading { display: block; padding-inline: 4px; }
+      .status { display: inline-block; margin-top: 8px; }
+      .map-scroll { border-inline: 1px solid var(--border); }
+      .flow-map { min-width: 860px; box-shadow: none; }
+      .omissions { overflow-x: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="masthead">
+      <div class="masthead-top">
+        <div>
+          <p class="eyebrow">Static call-chain evidence</p>
+          <h1 id="page-title">调用链可视化</h1>
+          <p class="summary" id="page-summary"></p>
+        </div>
+        <button class="icon-button" id="theme-toggle" type="button" aria-label="切换明暗主题" title="切换明暗主题">◐</button>
+      </div>
+      <div class="scope-strip" id="scope-strip"></div>
+    </header>
+    <section class="coverage-panel" aria-label="覆盖范围">
+      <div><h2>覆盖状态</h2><p id="coverage-summary"></p></div>
+      <div><h2>选择与边界</h2><p id="selection-basis"></p></div>
+    </section>
+    <nav class="tabs" id="flow-tabs" aria-label="调用链选择" role="tablist"></nav>
+    <div class="toolbar" aria-label="播放控制">
+      <button class="icon-button" type="button" data-action="play" aria-label="播放" title="播放">▶</button>
+      <button class="icon-button" type="button" data-action="pause" aria-label="暂停" title="暂停">Ⅱ</button>
+      <button class="icon-button" type="button" data-action="prev" aria-label="上一步" title="上一步">←</button>
+      <button class="icon-button" type="button" data-action="next" aria-label="下一步" title="下一步">→</button>
+      <button class="icon-button" type="button" data-action="reset" aria-label="重置" title="重置">↺</button>
+      <span class="divider" aria-hidden="true"></span>
+      <label class="track-toggle"><input type="checkbox" data-track="request" checked><span class="track-key"></span>请求路径</label>
+      <label class="track-toggle"><input type="checkbox" data-track="return" checked><span class="track-key return"></span>返回路径</label>
+    </div>
+    <main class="flow-shell" id="flow-shell"></main>
+  </div>
+  <script type="application/json" id="flow-data">{
+  "version": 2,
+  "meta": {
+    "title": "创建订单调用链",
+    "summary": "订单表单经 Controller、两个 Service 和 Repository 写入订单及明细，再返回 OrderView。",
+    "roots": [
+      {
+        "path": "fixtures/order-web",
+        "role": "frontend"
+      },
+      {
+        "path": "fixtures/order-api",
+        "role": "backend"
+      }
+    ]
+  },
+  "scope": {
+    "type": "feature",
+    "coverage": "complete",
+    "discoveryComplete": true,
+    "counts": {
+      "endpoints": {
+        "discovered": 1,
+        "traced": 1
+      }
+    },
+    "selectionBasis": "用户指定 POST /api/orders",
+    "omitted": []
+  },
+  "flows": [
+    {
+      "id": "create-order",
+      "title": "POST /api/orders",
+      "status": "complete",
+      "entryNodeId": "submit-order",
+      "responseNodeId": "http-response",
+      "selectionReason": "用户指定的订单创建主流程",
+      "nodes": [
+        {
+          "id": "submit-order",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "submitOrder",
+          "role": "把结算页表单作为 JSON 发往订单接口",
+          "http": {
+            "method": "POST",
+            "url": "/api/orders",
+            "params": [
+              {
+                "name": "items",
+                "in": "body",
+                "type": "OrderItemInput[]",
+                "meaning": "待购买商品与数量"
+              }
+            ]
+          },
+          "result": {
+            "type": "Promise\u003cApiResult\u003cOrderView>>",
+            "source": "response-body"
+          },
+          "evidence": [
+            {
+              "path": "src/api/orders.ts",
+              "line": 14,
+              "symbol": "submitOrder",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-controller",
+          "depth": 1,
+          "lane": "request",
+          "kind": "controller",
+          "layer": "Controller",
+          "symbol": "OrderController.create",
+          "signature": "Result\u003cOrderView> create(CreateOrderRequest request, Principal principal)",
+          "role": "绑定请求体和当前用户，并调用订单服务",
+          "params": [
+            {
+              "name": "request",
+              "type": "CreateOrderRequest",
+              "source": "request body",
+              "meaning": "订单创建参数"
+            },
+            {
+              "name": "principal",
+              "type": "Principal",
+              "source": "security context",
+              "meaning": "当前登录用户"
+            }
+          ],
+          "result": {
+            "type": "Result\u003cOrderView>",
+            "source": "in-memory-object"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderController.java",
+              "line": 27,
+              "symbol": "OrderController.create",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-service",
+          "depth": 2,
+          "lane": "request",
+          "kind": "service",
+          "layer": "Service",
+          "symbol": "OrderService.create",
+          "signature": "OrderAggregate create(long userId, CreateOrderCommand command)",
+          "role": "编排库存校验、金额计算和订单持久化事务",
+          "params": [
+            {
+              "name": "userId",
+              "type": "long",
+              "source": "principal.userId",
+              "meaning": "下单用户 ID"
+            },
+            {
+              "name": "command",
+              "type": "CreateOrderCommand",
+              "source": "request.toCommand()",
+              "meaning": "标准化后的下单命令"
+            }
+          ],
+          "result": {
+            "type": "OrderAggregate",
+            "source": "in-memory-object",
+            "consumed": "order-controller-return"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderService.java",
+              "line": 41,
+              "symbol": "OrderService.create",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "inventory-service",
+          "depth": 3,
+          "lane": "request",
+          "kind": "service",
+          "layer": "Service",
+          "symbol": "InventoryService.reserve",
+          "signature": "Reservation reserve(List\u003cOrderItemCommand> items)",
+          "role": "校验库存并生成本次订单的预占结果",
+          "params": [
+            {
+              "name": "items",
+              "type": "List\u003cOrderItemCommand>",
+              "source": "command.items",
+              "meaning": "订单明细命令"
+            }
+          ],
+          "result": {
+            "type": "Reservation",
+            "source": "in-memory-object",
+            "consumed": "order-repository"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/InventoryService.java",
+              "line": 33,
+              "symbol": "InventoryService.reserve",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-repository",
+          "depth": 4,
+          "lane": "request",
+          "kind": "data-access",
+          "layer": "Data Access",
+          "symbol": "OrderRepository.insert",
+          "signature": "OrderAggregate insert(OrderDraft draft, Reservation reservation)",
+          "role": "在同一事务中写入订单主表和明细表",
+          "params": [
+            {
+              "name": "draft",
+              "type": "OrderDraft",
+              "source": "OrderDraft.of(userId, command)",
+              "meaning": "待持久化订单"
+            },
+            {
+              "name": "reservation",
+              "type": "Reservation",
+              "source": "inventoryService.reserve(...) result",
+              "meaning": "库存预占结果"
+            }
+          ],
+          "result": {
+            "type": "OrderAggregate",
+            "source": "affected-row-count",
+            "consumed": "order-service-return"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 52,
+              "symbol": "OrderRepository.insert",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "orders-db-insert",
+          "depth": 5,
+          "lane": "turnaround",
+          "kind": "database",
+          "layer": "Database",
+          "symbol": "orders INSERT",
+          "role": "写入订单主表",
+          "result": {
+            "type": "int",
+            "source": "affected-row-count"
+          },
+          "database": {
+            "system": "PostgreSQL/order_db",
+            "table": "orders",
+            "operation": "INSERT",
+            "criteria": "写入 user_id/status/total",
+            "returnsRows": false
+          },
+          "evidence": [
+            {
+              "path": "src/main/resources/mapper/OrderMapper.xml",
+              "line": 12,
+              "symbol": "insert",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-items-db-insert",
+          "depth": 5,
+          "lane": "turnaround",
+          "kind": "database",
+          "layer": "Database",
+          "symbol": "order_items INSERT",
+          "role": "写入订单明细表",
+          "result": {
+            "type": "int",
+            "source": "affected-row-count"
+          },
+          "database": {
+            "system": "PostgreSQL/order_db",
+            "table": "order_items",
+            "operation": "INSERT",
+            "criteria": "写入 order_id/product_id/qty",
+            "returnsRows": false
+          },
+          "evidence": [
+            {
+              "path": "src/main/resources/mapper/OrderItemMapper.xml",
+              "line": 8,
+              "symbol": "insertBatch",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-entity-return",
+          "depth": 4,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "ORM映射",
+          "role": "把插入结果回填到 OrderAggregate",
+          "result": {
+            "type": "OrderAggregate",
+            "source": "in-memory-object"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 58,
+              "symbol": "OrderRepository.insert",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "order-view-return",
+          "depth": 3,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "OrderAssembler.toView",
+          "role": "把聚合根映射为前端展示对象",
+          "result": {
+            "type": "OrderView",
+            "source": "in-memory-object"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderAssembler.java",
+              "line": 19,
+              "symbol": "OrderAssembler.toView",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "result-wrapper-return",
+          "depth": 2,
+          "lane": "return",
+          "kind": "transform",
+          "layer": "Return",
+          "symbol": "Result.success",
+          "role": "包装为统一响应结构",
+          "result": {
+            "type": "Result\u003cOrderView>",
+            "source": "in-memory-object"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/Result.java",
+              "line": 15,
+              "symbol": "Result.success",
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "http-response",
+          "depth": 1,
+          "lane": "return",
+          "kind": "response",
+          "layer": "HTTP Response",
+          "symbol": "201 Created",
+          "role": "返回 JSON 响应",
+          "result": {
+            "type": "HTTP 201",
+            "source": "response-body"
+          },
+          "response": {
+            "status": 201,
+            "contentType": "application/json",
+            "bodyShape": "{code, message, data: {id, status, total}}"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderController.java",
+              "line": 30,
+              "symbol": "OrderController.create",
+              "basis": "confirmed"
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "e1",
+          "from": "submit-order",
+          "to": "order-controller",
+          "direction": "request",
+          "order": 1,
+          "label": "POST /api/orders",
+          "call": {
+            "arguments": [
+              {
+                "parameter": "request",
+                "expression": "body"
+              },
+              {
+                "parameter": "principal",
+                "expression": "securityContext.principal"
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "path": "src/api/orders.ts",
+              "line": 16,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e2",
+          "from": "order-controller",
+          "to": "order-service",
+          "direction": "request",
+          "order": 2,
+          "label": "userId + command",
+          "call": {
+            "arguments": [
+              {
+                "parameter": "userId",
+                "expression": "principal.userId"
+              },
+              {
+                "parameter": "command",
+                "expression": "request.toCommand()"
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderController.java",
+              "line": 28,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e3",
+          "from": "order-service",
+          "to": "inventory-service",
+          "direction": "request",
+          "order": 3,
+          "label": "items",
+          "call": {
+            "arguments": [
+              {
+                "parameter": "items",
+                "expression": "command.items"
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderService.java",
+              "line": 43,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e4",
+          "from": "order-service",
+          "to": "order-repository",
+          "direction": "request",
+          "order": 4,
+          "label": "draft + reservation",
+          "call": {
+            "arguments": [
+              {
+                "parameter": "draft",
+                "expression": "OrderDraft.of(userId, command)"
+              },
+              {
+                "parameter": "reservation",
+                "expression": "inventoryService.reserve(...)"
+              }
+            ]
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderService.java",
+              "line": 45,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e5",
+          "from": "order-repository",
+          "to": "orders-db-insert",
+          "direction": "request",
+          "order": 5,
+          "label": "INSERT orders",
+          "call": {
+            "arguments": []
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 53,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e6",
+          "from": "order-repository",
+          "to": "order-items-db-insert",
+          "direction": "request",
+          "order": 6,
+          "label": "INSERT order_items",
+          "call": {
+            "arguments": []
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 55,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e7",
+          "from": "orders-db-insert",
+          "to": "order-entity-return",
+          "direction": "return",
+          "order": 1,
+          "label": "affected rows -> Entity",
+          "transform": {
+            "before": "int (affected rows)",
+            "after": "OrderAggregate",
+            "action": "ORM 回填主键到内存对象"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 58,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e7b",
+          "from": "order-items-db-insert",
+          "to": "order-entity-return",
+          "direction": "return",
+          "order": 1,
+          "label": "affected rows -> Entity",
+          "transform": {
+            "before": "int (affected rows)",
+            "after": "OrderAggregate",
+            "action": "明细写入完成，聚合返回"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderRepository.java",
+              "line": 59,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e8",
+          "from": "order-entity-return",
+          "to": "order-view-return",
+          "direction": "return",
+          "order": 2,
+          "label": "Entity -> View",
+          "transform": {
+            "before": "OrderAggregate",
+            "after": "OrderView",
+            "action": "映射公开字段并格式化金额"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderAssembler.java",
+              "line": 19,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e9",
+          "from": "order-view-return",
+          "to": "result-wrapper-return",
+          "direction": "return",
+          "order": 3,
+          "label": "View -> Result",
+          "transform": {
+            "before": "OrderView",
+            "after": "Result\u003cOrderView>",
+            "action": "包装为统一响应结构"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/Result.java",
+              "line": 15,
+              "basis": "confirmed"
+            }
+          ]
+        },
+        {
+          "id": "e10",
+          "from": "result-wrapper-return",
+          "to": "http-response",
+          "direction": "return",
+          "order": 4,
+          "label": "Result -> HTTP 201",
+          "transform": {
+            "before": "Result\u003cOrderView>",
+            "after": "HTTP 201 JSON",
+            "action": "序列化为 JSON 并设置状态码"
+          },
+          "evidence": [
+            {
+              "path": "src/main/java/demo/OrderController.java",
+              "line": 30,
+              "basis": "confirmed"
+            }
+          ]
+        }
+      ],
+      "paths": [
+        {
+          "id": "success",
+          "label": "正常创建",
+          "condition": null,
+          "steps": [
+            {
+              "nodeId": "submit-order",
+              "edgeId": null
+            },
+            {
+              "nodeId": "order-controller",
+              "edgeId": "e1"
+            },
+            {
+              "nodeId": "order-service",
+              "edgeId": "e2"
+            },
+            {
+              "nodeId": "inventory-service",
+              "edgeId": "e3"
+            },
+            {
+              "nodeId": "order-repository",
+              "edgeId": "e4"
+            },
+            {
+              "nodeId": "orders-db-insert",
+              "edgeId": "e5"
+            },
+            {
+              "nodeId": "order-items-db-insert",
+              "edgeId": "e6"
+            },
+            {
+              "nodeId": "order-entity-return",
+              "edgeId": "e7"
+            },
+            {
+              "nodeId": "order-view-return",
+              "edgeId": "e8"
+            },
+            {
+              "nodeId": "result-wrapper-return",
+              "edgeId": "e9"
+            },
+            {
+              "nodeId": "http-response",
+              "edgeId": "e10"
+            }
+          ],
+          "terminalNodeId": "http-response",
+          "dbOperationCount": 2
+        },
+        {
+          "id": "success-items-return",
+          "label": "明细返回路径",
+          "condition": "order_items INSERT 完成后返回",
+          "steps": [
+            {
+              "nodeId": "submit-order",
+              "edgeId": null
+            },
+            {
+              "nodeId": "order-controller",
+              "edgeId": "e1"
+            },
+            {
+              "nodeId": "order-service",
+              "edgeId": "e2"
+            },
+            {
+              "nodeId": "order-repository",
+              "edgeId": "e4"
+            },
+            {
+              "nodeId": "order-items-db-insert",
+              "edgeId": "e6"
+            },
+            {
+              "nodeId": "order-entity-return",
+              "edgeId": "e7b"
+            },
+            {
+              "nodeId": "order-view-return",
+              "edgeId": "e8"
+            },
+            {
+              "nodeId": "result-wrapper-return",
+              "edgeId": "e9"
+            },
+            {
+              "nodeId": "http-response",
+              "edgeId": "e10"
+            }
+          ],
+          "terminalNodeId": "http-response",
+          "dbOperationCount": 1
+        }
+      ],
+      "transactions": [
+        {
+          "id": "order-tx",
+          "entryNodeId": "order-service",
+          "memberNodeIds": [
+            "order-repository",
+            "orders-db-insert",
+            "order-items-db-insert"
+          ],
+          "outsideTxNodeIds": [],
+          "commitPointNodeId": "order-entity-return",
+          "rollbackConditions": [
+            "InventoryException",
+            "DataIntegrityViolationException"
+          ]
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>
+    (() => {
+      'use strict';
+      const dataNode = document.getElementById('flow-data');
+      const app = document.getElementById('app');
+      let data;
+      try {
+        data = JSON.parse(dataNode.textContent);
+      } catch (error) {
+        app.innerHTML = `<div class="fatal"><strong>FLOW_DATA 无法解析</strong><br>${String(error.message)}</div>`;
+        return;
+      }
+
+      const state = { flowIndex: 0, pathIndex: 0, step: -1, timer: null, requestVisible: true, returnVisible: true };
+      let drawFrame = 0;
+      const el = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+      const currentFlow = () => data.flows[state.flowIndex];
+      const domId = (nodeId) => `flow-${state.flowIndex}-node-${nodeId}`;
+      const edgeDomId = (edgeId) => `flow-${state.flowIndex}-edge-${edgeId}`;
+      const sortedEdges = (flow) => [...flow.edges].sort((a, b) => {
+        const rank = { request: 0, branch: 1, return: 2, spawn: 3 };
+        return rank[a.direction] - rank[b.direction] || a.order - b.order;
+      });
+      const playback = (flow) => {
+        // Use explicit path steps if available
+        if (Array.isArray(flow.paths) && flow.paths.length > 0) {
+          const path = flow.paths[state.pathIndex] || flow.paths[0];
+          if (path && Array.isArray(path.steps) && path.steps.length > 0) {
+            return path.steps.map((step) => ({ nodeId: step.nodeId, edgeId: step.edgeId }));
+          }
+        }
+        // Fallback: derive from sorted edges
+        return [
+          { nodeId: flow.entryNodeId, edgeId: null },
+          ...sortedEdges(flow).map((edge) => ({ nodeId: edge.to, edgeId: edge.id })),
+        ];
+      };
+
+      document.title = data.meta.title;
+      document.getElementById('page-title').textContent = data.meta.title;
+      document.getElementById('page-summary').textContent = data.meta.summary;
+      renderScope();
+      renderTabs();
+      renderFlow();
+
+      function renderScope() {
+        const strip = document.getElementById('scope-strip');
+        const endpoints = data.scope.counts.endpoints;
+        const badges = [data.scope.type, data.scope.coverage, `${endpoints.traced}/${endpoints.discovered} endpoints`];
+        if (data.scope.counts.modules) badges.push(`${data.scope.counts.modules.traced}/${data.scope.counts.modules.discovered} modules`);
+        if (!data.scope.discoveryComplete) badges.push('readable roots only');
+        badges.forEach((text, index) => {
+          const badge = el('span', `badge${index === 1 ? ` coverage-${data.scope.coverage}` : ''}`, text);
+          strip.append(badge);
+        });
+        document.getElementById('coverage-summary').textContent = `${data.scope.coverage} · 已追踪 ${endpoints.traced}/${endpoints.discovered} 个入口${data.scope.discoveryComplete ? '' : ' · 入口盘点不完整'}`;
+        document.getElementById('selection-basis').textContent = data.scope.selectionBasis;
+      }
+
+      function renderTabs() {
+        const tabs = document.getElementById('flow-tabs');
+        tabs.replaceChildren();
+        data.flows.forEach((flow, index) => {
+          const button = el('button', 'tab', flow.title);
+          button.type = 'button';
+          button.setAttribute('role', 'tab');
+          button.setAttribute('aria-selected', String(index === state.flowIndex));
+          button.setAttribute('aria-controls', `flow-panel-${index}`);
+          button.id = `flow-tab-${index}`;
+          button.addEventListener('click', () => {
+            pause();
+            state.flowIndex = index;
+            state.step = -1;
+            state.pathIndex = 0;
+            renderTabs();
+            renderFlow();
+          });
+          tabs.append(button);
+        });
+      }
+
+      function renderFlow() {
+        const flow = currentFlow();
+        const shell = document.getElementById('flow-shell');
+        shell.replaceChildren();
+        shell.setAttribute('role', 'tabpanel');
+        shell.setAttribute('id', `flow-panel-${state.flowIndex}`);
+        shell.setAttribute('aria-labelledby', `flow-tab-${state.flowIndex}`);
+
+        const heading = el('div', 'flow-heading');
+        const copy = el('div');
+        copy.append(el('h2', '', flow.title), el('p', '', flow.selectionReason || '用户指定链路'));
+        heading.append(copy, el('span', `status${flow.status === 'broken' ? ' broken' : ''}`, flow.status));
+        shell.append(heading);
+
+        // Path selector
+        if (Array.isArray(flow.paths) && flow.paths.length > 0) {
+          const selector = el('div', 'path-selector');
+          selector.setAttribute('role', 'group');
+          selector.setAttribute('aria-label', '执行路径选择');
+          flow.paths.forEach((path, pathIndex) => {
+            const label = el('label', pathIndex === state.pathIndex ? 'active' : '');
+            const input = el('input');
+            input.type = 'radio';
+            input.name = `path-${state.flowIndex}`;
+            input.checked = pathIndex === state.pathIndex;
+            input.addEventListener('change', () => {
+              state.pathIndex = pathIndex;
+              state.step = -1;
+              pause();
+              renderFlow();
+            });
+            label.append(input, document.createTextNode(path.label || path.id));
+            selector.append(label);
+          });
+          shell.append(selector);
+        }
+
+        const scroller = el('div', 'map-scroll');
+        const map = el('section', 'flow-map');
+        map.id = `flow-map-${state.flowIndex}`;
+        map.classList.toggle('track-request-hidden', !state.requestVisible);
+        map.classList.toggle('track-return-hidden', !state.returnVisible);
+        map.append(createSvg());
+        const heads = el('div', 'lane-headings');
+        heads.append(el('div', 'lane-title request', 'REQUEST / CALLS'), el('div', 'lane-title return', 'RETURN / DATA'));
+        map.append(heads);
+
+        const incoming = new Map(flow.nodes.map((node) => [node.id, []]));
+        flow.edges.forEach((edge) => incoming.get(edge.to)?.push(edge));
+        const maxDepth = Math.max(...flow.nodes.map((node) => node.depth));
+        for (let depth = 0; depth <= maxDepth; depth += 1) {
+          const rowNodes = flow.nodes.filter((node) => node.depth === depth);
+          if (!rowNodes.length) continue;
+          const row = el('div', 'flow-row');
+          row.dataset.depth = String(depth);
+          const layers = [...new Set(rowNodes.map((node) => node.layer))].join(' / ');
+          row.append(el('div', 'layer-label', layers));
+          for (const lane of ['request', 'turnaround', 'return']) {
+            const laneNodes = rowNodes.filter((node) => node.lane === lane);
+            if (!laneNodes.length) continue;
+            const stack = el('div', `node-stack ${lane}`);
+            laneNodes.forEach((node) => stack.append(renderNode(node, incoming.get(node.id) ?? [])));
+            row.append(stack);
+          }
+          map.append(row);
+        }
+        scroller.append(map);
+        shell.append(scroller);
+        renderOmissions(shell);
+        scheduleDraw();
+        observeMap(map);
+        drawConnectors();
+      }
+
+      function createSvg() {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('connectors');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.innerHTML = `<defs>
+          <marker id="arrow-request" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="var(--request)"></path></marker>
+          <marker id="arrow-return" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="var(--return)"></path></marker>
+          <marker id="arrow-branch" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="var(--muted)"></path></marker>
+          <marker id="arrow-spawn" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="var(--focus)"></path></marker>
+        </defs>`;
+        return svg;
+      }
+
+      function renderNode(node, incomingEdges) {
+        const card = el('div', 'node-card');
+        card.id = domId(node.id);
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.dataset.nodeId = node.id;
+        card.dataset.lane = node.lane;
+        card.dataset.kind = node.kind;
+        card.setAttribute('aria-expanded', 'false');
+        const top = el('span', 'node-topline');
+        top.append(el('span', 'kind', `${node.layer} · ${node.kind}`), el('span', 'expand-mark', '+'));
+        card.append(top, el('span', 'node-symbol', node.symbol));
+        if (node.signature) card.append(el('p', 'signature', node.signature));
+        card.append(el('p', 'role', node.role));
+        card.append(renderDetails(node, incomingEdges));
+        const toggle = () => {
+          const open = card.classList.toggle('open');
+          card.setAttribute('aria-expanded', String(open));
+          card.querySelector('.expand-mark').textContent = open ? '−' : '+';
+          scheduleDraw();
+        };
+        card.addEventListener('click', toggle);
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggle();
+          }
+        });
+        return card;
+      }
+
+      function renderDetails(node, incomingEdges) {
+        const detail = el('div', 'node-detail');
+        if (node.http) {
+          addDetail(detail, 'HTTP 请求', `${node.http.method} ${node.http.url}`);
+          if (node.http.params) detail.append(paramTable(node.http.params.map((param) => ({ ...param, source: param.in })), '请求参数'));
+        }
+        if (node.params) detail.append(paramTable(node.params));
+        if (node.database) addDetail(detail, '数据库操作', `${node.database.system} · ${node.database.table} · ${node.database.operation}\n${node.database.criteria}`);
+        if (node.response) addDetail(detail, '最终响应', `${node.response.status} ${node.response.contentType}\n${node.response.bodyShape}`);
+        if (node.break) addDetail(detail, '静态分析断点', `${node.break.reason}\n已知下一跳：${node.break.knownNext}`);
+        addDetail(detail, '返回值', `${node.result.type}${node.result.shape ? ` · ${node.result.shape}` : ''}`);
+
+        if (incomingEdges.length) {
+          const section = el('div', 'detail-section');
+          section.append(el('h3', '', '进入此节点的数据'));
+          const notes = el('div', 'edge-notes');
+          incomingEdges.forEach((edge) => {
+            const note = el('div', `edge-note${edge.direction === 'return' ? ' return' : ''}`);
+            note.append(el('strong', '', edge.label || edge.direction));
+            if (edge.call?.arguments?.length) note.append(el('code', '', edge.call.arguments.map((arg) => `${arg.parameter} ← ${arg.expression}`).join(' · ')));
+            if (edge.transform) note.append(el('code', '', `${edge.transform.before} → ${edge.transform.after} · ${edge.transform.action}`));
+            if (edge.condition) note.append(el('code', '', `条件：${edge.condition}`));
+            notes.append(note);
+          });
+          section.append(notes);
+          detail.append(section);
+        }
+
+        const evidence = el('span', 'detail-section');
+        evidence.append(el('h3', '', '源码证据'));
+        const list = el('ul', 'evidence-list');
+        node.evidence.forEach((item) => list.append(el('li', 'mono', `${item.path}:${item.line}${item.symbol ? ` · ${item.symbol}` : ''} · ${item.basis}`)));
+        evidence.append(list);
+        detail.append(evidence);
+        return detail;
+      }
+
+      function addDetail(parent, title, value) {
+        const section = el('span', 'detail-section');
+        section.append(el('h3', '', title));
+        const text = el('p', 'mono', value);
+        text.style.whiteSpace = 'pre-wrap';
+        section.append(text);
+        parent.append(section);
+      }
+
+      function paramTable(params, title = '方法参数') {
+        const section = el('span', 'detail-section');
+        section.append(el('h3', '', title));
+        if (!params.length) {
+          section.append(el('p', 'empty', '无参数'));
+          return section;
+        }
+        const table = el('table', 'params');
+        const head = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['名称', '类型', '来源 / 含义'].forEach((text) => headRow.append(el('th', '', text)));
+        head.append(headRow);
+        const body = document.createElement('tbody');
+        params.forEach((param) => {
+          const row = document.createElement('tr');
+          row.append(el('td', 'mono', param.name), el('td', 'mono', param.type), el('td', '', `${param.source ? `${param.source} · ` : ''}${param.meaning}`));
+          body.append(row);
+        });
+        table.append(head, body);
+        section.append(table);
+        return section;
+      }
+
+      function renderOmissions(shell) {
+        const section = el('section', 'omissions');
+        section.append(el('h2', '', '未追踪入口'));
+        if (!data.scope.omitted.length) {
+          section.append(el('p', 'empty', '当前声明范围内无遗漏入口。'));
+          shell.append(section);
+          return;
+        }
+        const table = document.createElement('table');
+        const head = document.createElement('thead');
+        const row = document.createElement('tr');
+        ['方法', 'URL / 符号', '未追踪原因'].forEach((text) => row.append(el('th', '', text)));
+        head.append(row);
+        const body = document.createElement('tbody');
+        data.scope.omitted.forEach((item) => {
+          const itemRow = document.createElement('tr');
+          itemRow.append(el('td', 'mono', item.method), el('td', 'mono', item.url || item.symbol || '—'), el('td', '', item.reason));
+          body.append(itemRow);
+        });
+        table.append(head, body);
+        section.append(table);
+        shell.append(section);
+      }
+
+      function scheduleDraw() {
+        cancelAnimationFrame(drawFrame);
+        drawFrame = requestAnimationFrame(drawConnectors);
+      }
+
+      function drawConnectors() {
+        const flow = currentFlow();
+        const map = document.getElementById(`flow-map-${state.flowIndex}`);
+        if (!map) return;
+        const svg = map.querySelector('.connectors');
+        const defs = svg.querySelector('defs');
+        svg.replaceChildren(defs);
+        svg.setAttribute('viewBox', `0 0 ${map.clientWidth} ${map.clientHeight}`);
+        const mapRect = map.getBoundingClientRect();
+
+        sortedEdges(flow).forEach((edge) => {
+          const from = document.getElementById(domId(edge.from));
+          const to = document.getElementById(domId(edge.to));
+          if (!from || !to) return;
+          const a = relativeRect(from.getBoundingClientRect(), mapRect);
+          const b = relativeRect(to.getBoundingClientRect(), mapRect);
+          const reverse = edge.direction === 'return';
+          const start = { x: a.x + a.width / 2, y: reverse ? a.y : a.y + a.height };
+          const end = { x: b.x + b.width / 2, y: reverse ? b.y + b.height : b.y };
+          const midY = start.y + (end.y - start.y) / 2;
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.id = edgeDomId(edge.id);
+          path.classList.add('edge-path', edge.direction === 'spawn' ? 'spawn' : edge.direction);
+          path.setAttribute('d', `M ${start.x} ${start.y} V ${midY} H ${end.x} V ${end.y}`);
+          svg.append(path);
+          if (edge.label) svg.append(createEdgeLabel(edge, (start.x + end.x) / 2, midY));
+        });
+        applyTrackVisibility(map);
+        highlightStep();
+      }
+
+      function createEdgeLabel(edge, x, y) {
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.classList.add('edge-label', edge.direction);
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.textContent = edge.label.length > 24 ? `${edge.label.slice(0, 23)}…` : edge.label;
+        text.setAttribute('x', x);
+        text.setAttribute('y', y - 8);
+        text.setAttribute('text-anchor', 'middle');
+        group.append(text);
+        requestAnimationFrame(() => {
+          if (!text.isConnected) return;
+          const box = text.getBBox();
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', box.x - 6);
+          rect.setAttribute('y', box.y - 3);
+          rect.setAttribute('width', box.width + 12);
+          rect.setAttribute('height', box.height + 6);
+          group.insertBefore(rect, text);
+        });
+        return group;
+      }
+
+      function relativeRect(rect, root) {
+        return { x: rect.left - root.left, y: rect.top - root.top, width: rect.width, height: rect.height };
+      }
+
+      function observeMap(map) {
+        const observer = new ResizeObserver(scheduleDraw);
+        observer.observe(map);
+        map.querySelectorAll('.node-card').forEach((node) => observer.observe(node));
+      }
+
+      function applyTrackVisibility(map = document.getElementById(`flow-map-${state.flowIndex}`)) {
+        if (!map) return;
+        map.classList.toggle('track-request-hidden', !state.requestVisible);
+        map.classList.toggle('track-return-hidden', !state.returnVisible);
+      }
+
+      function setStep(nextStep) {
+        const sequence = playback(currentFlow());
+        state.step = Math.max(-1, Math.min(nextStep, sequence.length - 1));
+        highlightStep();
+        if (state.step >= 0) document.getElementById(domId(sequence[state.step].nodeId))?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center', inline: 'nearest' });
+      }
+
+      function highlightStep() {
+        const flow = currentFlow();
+        const sequence = playback(flow);
+        document.querySelectorAll('.node-card.active, .edge-path.active').forEach((node) => node.classList.remove('active'));
+        if (state.step < 0 || !sequence[state.step]) return;
+        const current = sequence[state.step];
+        document.getElementById(domId(current.nodeId))?.classList.add('active');
+        if (current.edgeId) document.getElementById(edgeDomId(current.edgeId))?.classList.add('active');
+      }
+
+      function play() {
+        pause();
+        const sequence = playback(currentFlow());
+        if (state.step >= sequence.length - 1) state.step = -1;
+        const tick = () => {
+          if (state.step >= sequence.length - 1) { pause(); return; }
+          setStep(state.step + 1);
+        };
+        tick();
+        state.timer = window.setInterval(tick, 950);
+      }
+
+      function pause() {
+        if (state.timer) window.clearInterval(state.timer);
+        state.timer = null;
+      }
+
+      document.querySelector('.toolbar').addEventListener('click', (event) => {
+        const action = event.target.closest('[data-action]')?.dataset.action;
+        if (!action) return;
+        if (action === 'play') play();
+        if (action === 'pause') pause();
+        if (action === 'prev') { pause(); setStep(state.step - 1); }
+        if (action === 'next') { pause(); setStep(state.step + 1); }
+        if (action === 'reset') { pause(); setStep(-1); }
+      });
+
+      document.querySelector('.toolbar').addEventListener('change', (event) => {
+        const track = event.target.dataset.track;
+        if (track === 'request') state.requestVisible = event.target.checked;
+        if (track === 'return') state.returnVisible = event.target.checked;
+        applyTrackVisibility();
+      });
+
+      document.getElementById('theme-toggle').addEventListener('click', () => {
+        const root = document.documentElement;
+        root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+        scheduleDraw();
+      });
+      window.addEventListener('resize', scheduleDraw);
+
+      window.__flowData = data;
+      window.__flowDiagnostics = () => {
+        const flow = currentFlow();
+        const breakIds = flow.nodes.filter((node) => node.kind === 'break').map((node) => node.id);
+        const outDegree = Object.fromEntries(breakIds.map((id) => [id, flow.edges.filter((edge) => edge.from === id).length]));
+        const visibleCards = [...document.querySelectorAll('.node-card')].filter((node) => node.getBoundingClientRect().width > 0);
+        const overflow = visibleCards.filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.dataset.nodeId);
+
+        // Check for lines crossing cards
+        const map = document.getElementById(`flow-map-${state.flowIndex}`);
+        const linesCrossingCards = [];
+        const labelsOverlappingCards = [];
+        if (map) {
+          const cards = [...map.querySelectorAll('.node-card')].filter((c) => c.getBoundingClientRect().width > 0);
+          const paths = [...map.querySelectorAll('.edge-path')];
+          const labels = [...map.querySelectorAll('.edge-label')];
+          const mapRect = map.getBoundingClientRect();
+          cards.forEach((card) => {
+            const cardRect = card.getBoundingClientRect();
+            paths.forEach((path) => {
+              const pathRect = path.getBoundingClientRect();
+              // Check if path center line passes through card interior (not just endpoints)
+              const pathCenterX = pathRect.left + pathRect.width / 2;
+              const pathCenterY = pathRect.top + pathRect.height / 2;
+              if (pathCenterX > cardRect.left + 4 && pathCenterX < cardRect.right - 4 &&
+                  pathCenterY > cardRect.top + 4 && pathCenterY < cardRect.bottom - 4) {
+                const edgeId = path.id?.replace(`flow-${state.flowIndex}-edge-`, '');
+                if (edgeId && !linesCrossingCards.includes(edgeId)) linesCrossingCards.push(edgeId);
+              }
+            });
+            labels.forEach((label) => {
+              const labelRect = label.getBoundingClientRect();
+              // Check overlap
+              if (labelRect.left < cardRect.right - 2 && labelRect.right > cardRect.left + 2 &&
+                  labelRect.top < cardRect.bottom - 2 && labelRect.bottom > cardRect.top + 2) {
+                labelsOverlappingCards.push(card.dataset.nodeId);
+              }
+            });
+          });
+        }
+
+        // Check path playback continuity
+        const pathIssues = [];
+        if (Array.isArray(flow.paths) && flow.paths.length > 0) {
+          const path = flow.paths[state.pathIndex] || flow.paths[0];
+          if (path && Array.isArray(path.steps)) {
+            for (let i = 1; i < path.steps.length; i++) {
+              const step = path.steps[i];
+              if (step.edgeId) {
+                const edge = flow.edges.find((e) => e.id === step.edgeId);
+                if (edge && edge.from !== path.steps[i - 1].nodeId) {
+                  pathIssues.push(`step ${i}: edge ${step.edgeId} starts from ${edge.from}, expected ${path.steps[i - 1].nodeId}`);
+                }
+              }
+            }
+          }
+        }
+
+        return {
+          flowId: flow.id,
+          renderedNodes: visibleCards.length,
+          renderedEdges: document.querySelectorAll('.edge-path').length,
+          breakOutDegree: outDegree,
+          overflow,
+          linesCrossingCards,
+          labelsOverlappingCards,
+          pathIssues,
+          currentPathIndex: state.pathIndex,
+          viewport: { width: innerWidth, height: innerHeight },
+        };
+      };
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "meta": {
+    "title": "订单模块代表链路",
+    "summary": "已盘点 9 个订单入口，选择创建、查询和取消 3 条代表链路；后端实现位于不可读代码根。",
+    "roots": [
+      { "path": "fixtures/order-web", "role": "frontend" }
+    ]
+  },
+  "scope": {
+    "type": "module",
+    "coverage": "sampled",
+    "discoveryComplete": true,
+    "counts": {
+      "endpoints": { "discovered": 9, "traced": 3 }
+    },
+    "selectionBasis": "选择一个写入入口、一个查询入口和一个状态变更入口；后端独立仓库不可读，三条链均在网关边界停止",
+    "omitted": [
+      { "method": "GET", "url": "/api/orders", "symbol": "listOrders", "reason": "与单笔查询共享读取模式，本次抽样省略" },
+      { "method": "PUT", "url": "/api/orders/:id/address", "symbol": "updateAddress", "reason": "优先覆盖创建、查询和状态变更" },
+      { "method": "POST", "url": "/api/orders/:id/pay", "symbol": "payOrder", "reason": "支付属于外部集成，需单独授权其仓库后追踪" },
+      { "method": "POST", "url": "/api/orders/:id/ship", "symbol": "shipOrder", "reason": "本次抽样未选择物流支线" },
+      { "method": "POST", "url": "/api/orders/:id/confirm", "symbol": "confirmOrder", "reason": "与取消同属状态变更，选择取消作为代表" },
+      { "method": "GET", "url": "/api/orders/:id/logs", "symbol": "getOrderLogs", "reason": "审计读取不是本次核心业务链" }
+    ]
+  },
+  "flows": [
+    {
+      "id": "create-order",
+      "title": "POST /api/orders",
+      "status": "broken",
+      "entryNodeId": "create-request",
+      "selectionReason": "代表订单写入流程",
+      "nodes": [
+        {
+          "id": "create-request",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "createOrder",
+          "role": "提交订单商品和收货信息",
+          "http": {
+            "method": "POST",
+            "url": "/api/orders",
+            "params": [
+              { "name": "items", "in": "body", "type": "OrderItemInput[]", "meaning": "下单商品" },
+              { "name": "addressId", "in": "body", "type": "string", "meaning": "收货地址 ID" }
+            ]
+          },
+          "result": { "type": "Promise<OrderView>" },
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 11, "symbol": "createOrder", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "create-boundary",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Static Analysis Boundary",
+          "symbol": "POST /api/orders -> backend",
+          "role": "标明创建订单 Controller 位于不可读仓库",
+          "result": { "type": "unknown" },
+          "break": {
+            "phase": "request",
+            "reason": "订单后端独立仓库不在当前可读范围内",
+            "knownNext": "POST /api/orders，body: {items, addressId}"
+          },
+          "evidence": [
+            { "path": "src/config/http.ts", "line": 6, "symbol": "apiBaseUrl", "basis": "runtime-unknown" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "create-to-boundary",
+          "from": "create-request",
+          "to": "create-boundary",
+          "direction": "request",
+          "order": 0,
+          "label": "items + addressId",
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 12, "symbol": "http.post", "basis": "confirmed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "get-order",
+      "title": "GET /api/orders/:id",
+      "status": "broken",
+      "entryNodeId": "get-request",
+      "selectionReason": "代表订单读取流程",
+      "nodes": [
+        {
+          "id": "get-request",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "getOrder",
+          "role": "按订单 ID 请求详情",
+          "http": {
+            "method": "GET",
+            "url": "/api/orders/:id",
+            "params": [
+              { "name": "id", "in": "path", "type": "string", "meaning": "订单 ID" }
+            ]
+          },
+          "result": { "type": "Promise<OrderView>" },
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 20, "symbol": "getOrder", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "get-boundary",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Static Analysis Boundary",
+          "symbol": "GET /api/orders/:id -> backend",
+          "role": "标明订单详情 Controller 位于不可读仓库",
+          "result": { "type": "unknown" },
+          "break": {
+            "phase": "request",
+            "reason": "订单后端独立仓库不在当前可读范围内",
+            "knownNext": "GET /api/orders/{id}"
+          },
+          "evidence": [
+            { "path": "src/config/http.ts", "line": 6, "symbol": "apiBaseUrl", "basis": "runtime-unknown" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "get-to-boundary",
+          "from": "get-request",
+          "to": "get-boundary",
+          "direction": "request",
+          "order": 0,
+          "label": "id",
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 21, "symbol": "http.get", "basis": "confirmed" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cancel-order",
+      "title": "POST /api/orders/:id/cancel",
+      "status": "broken",
+      "entryNodeId": "cancel-request",
+      "selectionReason": "代表订单状态变更和原因参数",
+      "nodes": [
+        {
+          "id": "cancel-request",
+          "depth": 0,
+          "lane": "request",
+          "kind": "frontend",
+          "layer": "Frontend",
+          "symbol": "cancelOrder",
+          "role": "提交订单 ID 和取消原因",
+          "http": {
+            "method": "POST",
+            "url": "/api/orders/:id/cancel",
+            "params": [
+              { "name": "id", "in": "path", "type": "string", "meaning": "订单 ID" },
+              { "name": "reason", "in": "body", "type": "string", "meaning": "取消原因" }
+            ]
+          },
+          "result": { "type": "Promise<OrderView>" },
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 28, "symbol": "cancelOrder", "basis": "confirmed" }
+          ]
+        },
+        {
+          "id": "cancel-boundary",
+          "depth": 1,
+          "lane": "turnaround",
+          "kind": "break",
+          "layer": "Static Analysis Boundary",
+          "symbol": "POST /api/orders/:id/cancel -> backend",
+          "role": "标明订单取消 Controller 位于不可读仓库",
+          "result": { "type": "unknown" },
+          "break": {
+            "phase": "request",
+            "reason": "订单后端独立仓库不在当前可读范围内",
+            "knownNext": "POST /api/orders/{id}/cancel，body: {reason}"
+          },
+          "evidence": [
+            { "path": "src/config/http.ts", "line": 6, "symbol": "apiBaseUrl", "basis": "runtime-unknown" }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "cancel-to-boundary",
+          "from": "cancel-request",
+          "to": "cancel-boundary",
+          "direction": "request",
+          "order": 0,
+          "label": "id + reason",
+          "evidence": [
+            { "path": "src/api/orders.ts", "line": 29, "symbol": "http.post", "basis": "confirmed" }
+          ]
+        }
+      ]
+    }
+  ]
+}
