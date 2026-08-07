@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>知识文档模板</title>
+  <meta name="description" content="可独立阅读的知识文档模板">
+
+  <!-- Keep Mermaid for HTML documents that contain diagrams. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <!-- Remove svg-pan-zoom when the document has no complex diagram. -->
+  <script defer src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.2/dist/svg-pan-zoom.min.js"></script>
+
+  <!-- Remove all Prism resources when the document has no multiline code block. -->
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .diagram-shell:not(.pan-zoom-container) { padding: 20px; }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell:not(.pan-zoom-container) .mermaid svg {
+      max-width: 100% !important;
+      height: auto;
+    }
+
+    .pan-zoom-container {
+      height: clamp(440px, 68vh, 680px);
+      overflow: hidden;
+    }
+
+    .pan-zoom-container .mermaid {
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    .pan-zoom-container .mermaid:active { cursor: grabbing; }
+
+    .pan-zoom-container .mermaid svg {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: none !important;
+    }
+
+    .pan-zoom-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 5;
+      display: flex;
+      gap: 6px;
+    }
+
+    .pan-zoom-controls button {
+      min-width: 38px;
+      min-height: 36px;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--page);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .pan-zoom-controls button:hover { border-color: var(--accent); }
+
+    .pan-zoom-status {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      z-index: 5;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--page);
+      color: var(--muted);
+      font-size: 0.78rem;
+      pointer-events: none;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+      .pan-zoom-container { height: 520px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#core">3. 核心知识</a></li>
+          <li><a href="#example">4. 贯穿示例</a></li>
+          <li><a href="#review">5. 速查与自测</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <!-- Replace the sample content while preserving IDs synchronized with the TOC. -->
+      <h1>知识文档模板</h1>
+      <p class="lead">本文示范独立可读的教学结构，以及 Mermaid、复杂图缩放、代码高亮、固定目录和主题切换的组合方式。</p>
+      <p class="scope-note"><strong>范围：</strong>这是可复用骨架。生成成品时删除所有占位说明、不需要的依赖和不适用章节。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>先说明本文解决什么学习问题、面向谁，以及哪些内容不在范围内。</p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>下图回答：一个主题如何从输入经过处理到达可观察结果？图只表达主关系，具体边界由后文解释。</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="learning-flow">
+flowchart LR
+    I[Input] --> N[Normalize]
+    N --> E[Explain]
+    E --> V[Verify]
+            </div>
+          </div>
+          <figcaption>图 1：教学主线示例</figcaption>
+        </figure>
+        <p>纯线性且一句话即可说明的内容应改用文字；这里只用于演示普通 Mermaid 图的渲染。</p>
+      </section>
+
+      <section aria-labelledby="core">
+        <h2 id="core">3. 核心知识</h2>
+        <h3 id="core-concept">3.1 概念的主解释位置</h3>
+        <p>每个规范概念只在一个位置完整解释。其他章节只补充新边界、引用主解释或在综合示例中使用。</p>
+
+        <h3 id="core-relations">3.2 复杂关系全景</h3>
+        <p>下图回答：知识文档中的证据、主张、范围、章节、示例和验证记录如何关联？图的实体和字段较多，因此启用缩放拖拽。</p>
+        <figure>
+          <div class="diagram-shell pan-zoom-container" data-pan-zoom>
+            <div class="pan-zoom-controls" aria-label="图表缩放控件">
+              <button type="button" data-zoom-action="in" aria-label="放大图表">+</button>
+              <button type="button" data-zoom-action="out" aria-label="缩小图表">-</button>
+              <button type="button" data-zoom-action="reset" aria-label="重置图表">Reset</button>
+            </div>
+            <output class="pan-zoom-status" aria-live="polite">Zoom 100%; pan 0, 0</output>
+            <div class="mermaid" id="knowledge-model">
+erDiagram
+    CLAIM ||--o{ EVIDENCE : supported_by
+    CLAIM }o--|| SCOPE : limited_by
+    CLAIM }o--|| SECTION : explained_in
+    SECTION ||--o{ EXAMPLE : contains
+    CLAIM ||--o{ CHECK : verified_by
+    SOURCE ||--o{ EVIDENCE : provides
+    CLAIM {
+      string name
+      string fact_type
+      string status
+    }
+    EVIDENCE {
+      string source
+      string kind
+      string baseline
+    }
+    SCOPE {
+      string version
+      string condition
+      string exception
+    }
+    SECTION {
+      string heading
+      string document
+      string role
+    }
+    EXAMPLE {
+      string input
+      string result
+      string boundary
+    }
+    CHECK {
+      string method
+      string expected
+      string actual
+    }
+    SOURCE {
+      string location
+      string access_state
+      string authority
+    }
+            </div>
+          </div>
+          <figcaption>图 2：主张与证据的关系模型，可缩放拖拽</figcaption>
+        </figure>
+        <p>图没有表达证据强弱和冲突裁决顺序，这些规则应继续用文字和表格精确说明。</p>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">4. 贯穿示例</h2>
+        <p>代码示例必须自洽、标明语言，并转义来自会话或附件的 HTML 内容。</p>
+        <pre><code class="language-javascript">function classifyClaim(claim) {
+  return {
+    factType: claim.projectSpecific ? "current-implementation" : "general",
+    verification: claim.evidence ? "verified" : "needs-confirmation"
+  };
+}</code></pre>
+      </section>
+
+      <section aria-labelledby="review">
+        <h2 id="review">5. 速查与自测</h2>
+        <table>
+          <thead>
+            <tr><th>目标</th><th>做法</th><th>验证</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>避免重复</td><td>指定主解释位置</td><td>跨章节反查同一概念</td></tr>
+            <tr><td>避免误写事实</td><td>记录类型、证据和范围</td><td>逐条检查确定性主张</td></tr>
+          </tbody>
+        </table>
+        <h3 id="review-questions">自测问题</h3>
+        <ol>
+          <li>什么情况下项目事实可以保留在通用学习笔记中？</li>
+          <li>为什么复杂图的缩放不能替代按问题拆图？</li>
+          <li>浏览器不可用时，最终交付状态应该怎样描述？</li>
+        </ol>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var panZoomInstances = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function destroyPanZoom() {
+      panZoomInstances.forEach(function (instance) {
+        instance.destroy();
+      });
+      panZoomInstances.clear();
+    }
+
+    function prepareSvg(svg) {
+      svg.removeAttribute('style');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.style.maxWidth = 'none';
+    }
+
+    function updatePanZoomStatus(shell, instance) {
+      if (!instance) return;
+      var status = shell.querySelector('.pan-zoom-status');
+      if (!status) return;
+      var pan = instance.getPan();
+      status.value = 'Zoom ' + Math.round(instance.getZoom() * 100) + '%; pan ' + Math.round(pan.x) + ', ' + Math.round(pan.y);
+    }
+
+    function initPanZoom() {
+      if (typeof window.svgPanZoom !== 'function') return;
+
+      document.querySelectorAll('[data-pan-zoom]').forEach(function (shell) {
+        var svg = shell.querySelector('.mermaid svg');
+        if (!svg) return;
+        prepareSvg(svg);
+
+        var instance = window.svgPanZoom(svg, {
+          zoomEnabled: true,
+          panEnabled: true,
+          controlIconsEnabled: false,
+          minZoom: 0.25,
+          maxZoom: 8,
+          zoomScaleSensitivity: 0.3,
+          fit: true,
+          center: true,
+          onZoom: function () { updatePanZoomStatus(shell, instance); },
+          onPan: function () { updatePanZoomStatus(shell, instance); }
+        });
+        instance.resize();
+        instance.fit();
+        instance.center();
+        panZoomInstances.set(shell, instance);
+        updatePanZoomStatus(shell, instance);
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      destroyPanZoom();
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis' },
+        sequence: { useMaxWidth: true, actorMargin: 50 },
+        er: { useMaxWidth: true }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      initPanZoom();
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active = headings[0];
+      headings.forEach(function (heading) {
+        if (heading.offsetTop <= marker) active = heading;
+      });
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    function bindPanZoomControls() {
+      document.addEventListener('click', function (event) {
+        var control = event.target.closest('[data-zoom-action]');
+        if (!control) return;
+        var shell = control.closest('[data-pan-zoom]');
+        var instance = panZoomInstances.get(shell);
+        if (!instance) return;
+
+        var action = control.dataset.zoomAction;
+        if (action === 'in') instance.zoomBy(1.3);
+        if (action === 'out') instance.zoomBy(0.77);
+        if (action === 'reset') {
+          instance.resetZoom();
+          instance.center();
+        }
+      });
+    }
+
+    function resizePanZoom() {
+      panZoomInstances.forEach(function (instance) {
+        instance.resize();
+        instance.fit();
+        instance.center();
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      bindPanZoomControls();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', function () {
+        scheduleScrollSpy();
+        resizePanZoom();
+      });
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+
+    window.knowledgeDocument = {
+      renderMermaid: renderMermaid,
+      panZoomCount: function () { return panZoomInstances.size; },
+      panZoomFor: function (selector) { return panZoomInstances.get(document.querySelector(selector)); }
+    };
+  </script>
+</body>
+</html>

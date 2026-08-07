@@ -1,0 +1,4 @@
+interface:
+  display_name: "会话知识总结"
+  short_description: "将会话内容整理成完整、去重、主题隔离且可独立学习的知识文档"
+  default_prompt: "使用 $summarize-session-knowledge，将当前可见会话和我明确指定的材料编辑、去重并按学习顺序重构成独立知识文档；分离通用知识、教学示例和项目事实，如实标明证据边界，不把聊天记录或工具过程拼入正文。"
