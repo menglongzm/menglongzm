@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vue 前端知识梳理：从界面操作到后端请求</title>
+  <meta name="description" content="Vue 阅读框架：数据循环、模板连接线、函数触发与参数、响应式、父子通信与启动链路的可独立学习文档">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .toc .toc-sub {
+      padding-left: 22px;
+      font-size: 0.84rem;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .diagram-shell:not(.pan-zoom-container) { padding: 20px; }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell:not(.pan-zoom-container) .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #boot-flow svg {
+      max-width: min(420px, 100%) !important;
+      display: block;
+      margin: 0 auto;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位与主线</a></li>
+          <li><a href="#loop">2. 核心循环：数据驱动的界面</a></li>
+          <li><a href="#sfc">3. 单文件组件的三个部分</a></li>
+          <li><a href="#bindings">4. template 与 JS 的四条连接线</a></li>
+          <li><a href="#data-source">5. template 中的数据来自哪里</a></li>
+          <li><a href="#triggers">6. 函数在什么时候被触发</a></li>
+          <li><a href="#params">7. 函数参数是如何获得值的</a></li>
+          <li><a href="#list">8. 列表与表单的两个关键机制</a></li>
+          <li><a href="#reactive">9. 响应式更新</a></li>
+          <li><a href="#pagination">10. 筛选与翻页为何要区分</a></li>
+          <li><a href="#parent-child">11. 父子组件的两种通信方向</a></li>
+          <li><a href="#filter-chain">12. 产品筛选完整触发链</a></li>
+          <li><a href="#reading">13. 如何阅读陌生的 Vue 页面</a></li>
+          <li><a href="#boot">14. 前端应用启动链路</a></li>
+          <li><a href="#advanced">15. 进阶知识点</a></li>
+          <li><a href="#component-tree">16. 组件树结构总览</a></li>
+          <li><a href="#memory">17. 记忆卡片与自测</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>Vue 前端知识梳理：从界面操作到后端请求</h1>
+      <p class="lead">基于"报价审批页产品名称筛选"代码整理，目标是建立一套<strong>可迁移的 Vue 阅读框架</strong>，而不是逐条记忆语法。核心循环 + 四条连接线 + 五步阅读法，即可读懂大多数 Vue 2 业务页面。</p>
+      <p class="scope-note"><strong>范围：</strong>以 Vue 2 + Element UI / Avue 的组件式页面为主（示例组件：<code>el-select</code>、<code>avue-crud</code>、<code>el-dialog</code>）。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位与主线</h2>
+        <p>Vue 页面是一个<strong>持续循环的数据系统</strong>：数据决定界面，操作修改数据，数据变化自动刷新界面。开发者只需修改状态，Vue 负责同步界面。</p>
+        <pre><code class="language-text">JavaScript 提供数据
+  -> template 根据数据渲染界面
+  -> 用户操作界面
+  -> v-model 更新数据，事件调用函数
+  -> 函数请求后端
+  -> 后端结果写回数据
+  -> Vue 自动刷新界面</code></pre>
+        <p>在本次产品筛选功能中，这条主线具体是：</p>
+        <pre><code class="language-text">加载全部产品
+  -> 用户按名称或编码过滤候选项
+  -> 选择具体产品
+  -> productCode 写入查询条件
+  -> 请求审批列表
+  -> tableData 更新
+  -> 表格自动刷新</code></pre>
+      </section>
+
+      <section aria-labelledby="loop">
+        <h2 id="loop">2. 核心循环：数据驱动的界面</h2>
+        <p>下图回答：数据从 JavaScript 出发，经过哪些环节后回到界面？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="core-loop" data-fit="scroll">
+flowchart LR
+    A["JS 提供数据"] --> B["template 渲染界面"]
+    B --> C["用户操作界面"]
+    C --> D["v-model 更新数据<br/>事件调用函数"]
+    D --> E["函数请求后端"]
+    E --> F["结果写回数据"]
+    F --> A
+            </div>
+          </div>
+          <figcaption>图 1：Vue 页面核心数据循环</figcaption>
+        </figure>
+        <p>任何"点了一下没反应 / 数据没刷新"的问题，都可以沿这条环查找断点：是事件没触发、函数没执行、请求没发出，还是数据没写回。</p>
+      </section>
+
+      <section aria-labelledby="sfc">
+        <h2 id="sfc">3. 单文件组件的三个部分</h2>
+        <pre><code class="language-markup">&lt;template&gt;
+  页面结构和事件连接
+&lt;/template&gt;
+
+&lt;script&gt;
+  页面数据和业务逻辑
+&lt;/script&gt;
+
+&lt;style&gt;
+  页面样式
+&lt;/style&gt;</code></pre>
+        <table>
+          <thead>
+            <tr><th>部分</th><th>职责</th><th>类比</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>template</code></td><td>展示什么、监听什么操作</td><td>界面说明书</td></tr>
+            <tr><td><code>script</code></td><td>数据从哪里来、操作后做什么</td><td>控制中心</td></tr>
+            <tr><td><code>style</code></td><td>元素如何排列和显示</td><td>装修规则</td></tr>
+          </tbody>
+        </table>
+        <p>阅读页面时，不建议从第一行逐行读到底。更有效的顺序：</p>
+        <ol>
+          <li>在 <code>template</code> 中找到用户入口；</li>
+          <li>找到入口绑定的字段和函数；</li>
+          <li>到 <code>data/props/methods</code> 中追踪；</li>
+          <li>最后追踪 API 和返回数据。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="bindings">
+        <h2 id="bindings">4. template 与 JavaScript 的四条核心连接线</h2>
+
+        <h3>4.1 <code>{{ value }}</code>：把数据展示为文字</h3>
+        <pre><code class="language-markup">待我审批({{ toDoNum }})</code></pre>
+        <p>当 JavaScript 执行 <code>this.toDoNum = 25</code>，页面自动变为"待我审批(25)"。<strong>记忆：双花括号负责显示文字。</strong></p>
+
+        <h3>4.2 <code>:属性="value"</code>：把 JavaScript 数据交给组件</h3>
+        <pre><code class="language-markup">&lt;avue-crud :data="tableData" :table-loading="loading" /&gt;</code></pre>
+        <ul>
+          <li><code>tableData</code> 决定表格显示哪些记录；<code>loading</code> 决定是否显示加载状态。</li>
+          <li>冒号是 <code>v-bind:</code> 的简写：<code>data="tableData"</code> 传普通字符串，<code>:data="tableData"</code> 传 JavaScript 变量的值。</li>
+        </ul>
+        <p><strong>记忆：冒号负责向组件传入动态数据或函数。</strong></p>
+
+        <h3>4.3 <code>v-model="value"</code>：控件值与数据双向同步</h3>
+        <pre><code class="language-markup">&lt;el-select v-model="searchForm.productCode" /&gt;</code></pre>
+        <pre><code class="language-text">用户选择产品      -> searchForm.productCode 自动更新
+代码修改 productCode -> 下拉框选择状态自动更新</code></pre>
+        <p><code>v-model</code> 主要负责<strong>保存值</strong>，本身不等于"发起查询"。查询通常由事件绑定触发。<strong>记忆：v-model 负责界面值和状态之间的双向连接。</strong></p>
+
+        <h3>4.4 <code>@事件="method"</code>：事件发生时调用函数</h3>
+        <pre><code class="language-markup">&lt;el-button @click="search"&gt;查询&lt;/el-button&gt;
+&lt;el-select @change="search" /&gt;
+&lt;avue-crud @current-change="getTableData" /&gt;</code></pre>
+        <p>分别表示：点击按钮 → <code>search()</code>；下拉值改变 → <code>search()</code>；当前页码改变 → <code>getTableData()</code>。<code>@</code> 是 <code>v-on:</code> 的简写。<strong>记忆：@ 负责把用户操作连接到函数。</strong></p>
+
+        <h3>四条连接线总结</h3>
+        <table>
+          <thead>
+            <tr><th>模板语法</th><th>作用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>{{ value }}</code></td><td>显示数据</td></tr>
+            <tr><td><code>:prop="value"</code></td><td>给组件传动态数据或函数</td></tr>
+            <tr><td><code>v-model="value"</code></td><td>控件值与状态双向同步</td></tr>
+            <tr><td><code>@event="method"</code></td><td>事件发生时调用函数</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="data-source">
+        <h2 id="data-source">5. template 中的数据来自哪里</h2>
+        <p>模板可直接使用以下四类内容，<strong>不需要写 <code>this</code></strong>：</p>
+        <table>
+          <thead>
+            <tr><th>来源</th><th>作用</th><th>示例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>data()</code></td><td>组件自己的可变状态</td><td><code>searchForm</code>、<code>tableData</code></td></tr>
+            <tr><td><code>props</code></td><td>父组件传入的数据</td><td><code>searchType</code>、<code>areaOptions</code></td></tr>
+            <tr><td><code>computed</code></td><td>根据其他状态计算的值</td><td><code>jobNo</code></td></tr>
+            <tr><td><code>methods</code></td><td>可被事件或其他函数调用的方法</td><td><code>search()</code></td></tr>
+          </tbody>
+        </table>
+        <p>JavaScript 方法内部要写 <code>this.productOptions</code>；模板中直接写 <code>v-for="item in productOptions"</code>，因为模板天然处在当前组件的作用域中。</p>
+
+        <h3>5.1 <code>data()</code>：组件自身状态</h3>
+        <pre><code class="language-javascript">data() {
+  return {
+    allProductList: [],
+    productOptions: [],
+    searchForm: {
+      productCode: ''
+    },
+    tableData: []
+  }
+}</code></pre>
+        <ul>
+          <li><code>allProductList</code> 保存完整产品列表；<code>productOptions</code> 保存当前展示的候选项；</li>
+          <li><code>searchForm.productCode</code> 保存用户选中的产品编码；<code>tableData</code> 保存审批表格记录。</li>
+        </ul>
+
+        <h3>5.2 <code>props</code>：父组件传入的数据</h3>
+        <pre><code class="language-markup">&lt;to-approval :searchType="1" :areaOptions="areaOptions" /&gt;</code></pre>
+        <pre><code class="language-javascript">props: {
+  searchType: Number,
+  areaOptions: Array
+}</code></pre>
+        <p>数据流为：<code>父组件数据 → 标签属性 → 子组件 props → 子组件 template/methods</code>。有冒号的 <code>:searchType="1"</code> 传入数字 <code>1</code>；没有冒号的 <code>searchType="1"</code> 传入字符串 <code>'1'</code>。</p>
+
+        <h3>5.3 临时变量：<code>v-for</code> 与插槽</h3>
+        <pre><code class="language-markup">&lt;el-option v-for="item in productOptions" /&gt;</code></pre>
+        <p><code>item</code> 是循环中的当前元素，只在这一段模板中有效。</p>
+        <pre><code class="language-markup">&lt;template slot-scope="{ row }"&gt;
+  &lt;el-button @click="handle(row)"&gt;处理&lt;/el-button&gt;
+&lt;/template&gt;</code></pre>
+        <p><code>row</code> 是表格组件提供的当前行数据，并非来自 <code>data()</code>。</p>
+      </section>
+
+      <section aria-labelledby="triggers">
+        <h2 id="triggers">6. 函数在什么时候被触发</h2>
+        <p>Vue 页面中的函数主要通过四种方式触发。</p>
+
+        <h3>6.1 生命周期自动触发</h3>
+        <pre><code class="language-javascript">created() {
+  this.getTableData()
+}
+
+mounted() {
+  this.getAllProductList()
+}</code></pre>
+        <ul>
+          <li><code>created</code>：组件数据和方法准备好后，由 Vue 自动调用（本页：查询审批列表）；</li>
+          <li><code>mounted</code>：组件已经放到页面后，由 Vue 自动调用（本页：加载产品候选项）。</li>
+        </ul>
+
+        <h3>6.2 界面事件触发</h3>
+        <pre><code class="language-markup">@click="search"
+@change="search"
+@current-change="getTableData"</code></pre>
+        <p>用户点击、选择或翻页后，组件发出事件，Vue 按模板绑定调用对应方法。</p>
+
+        <h3>6.3 组件按约定调用回调</h3>
+        <pre><code class="language-markup">&lt;el-select :remote-method="productProductData" /&gt;</code></pre>
+        <p>这里是把函数交给 Element UI。用户输入搜索文字时，<code>el-select</code> 按组件约定调用 <code>productProductData(当前输入文字)</code>。例如输入"肉丝"：<code>productProductData('肉丝')</code>。</p>
+
+        <h3>6.4 JavaScript 方法之间主动调用</h3>
+        <pre><code class="language-javascript">search() {
+  this.getTableData()
+}</code></pre>
+        <p>这里不是 Vue 自动触发，而是 <code>search()</code> 主动调用另一个方法。</p>
+      </section>
+
+      <section aria-labelledby="params">
+        <h2 id="params">7. 函数参数是如何获得值的</h2>
+        <p>核心规则：<strong>谁调用函数，通常就由谁提供实参；函数形参按位置接收。</strong></p>
+        <ol>
+          <li><strong>模板显式传入</strong>：<code>@click="handle(row)"</code> → 模板中的当前行 <code>row</code> 成为函数的第一个参数。</li>
+          <li><strong>组件自动传入</strong>：<code>:remote-method="productProductData"</code> → Element UI 自动传入当前搜索文字。事件也可能自动携带值，但函数可以不接收（<code>@change="search"</code> 中事件值被忽略，改为从 <code>this.searchForm</code> 读取统一状态）。</li>
+          <li><strong>JavaScript 数组方法传入</strong>：<code>map((item) => ...)</code>、<code>filter((item) => ...)</code> 每次把当前数组元素赋给 <code>item</code>。</li>
+          <li><strong>Promise 传入接口响应</strong>：<code>apiGetApprovalPage(params).then((res) => { this.tableData = res.data.data.records })</code>。</li>
+          <li><strong>对象解构参数</strong>：<code>headerCellClassName({ columnIndex })</code> 等价于先接收整个上下文对象再取 <code>columnIndex</code>。</li>
+          <li><strong>不使用参数，读取组件状态</strong>：</li>
+        </ol>
+        <pre><code class="language-javascript">getTableData() {
+  const params = {
+    ...this.searchForm,        // 来自 data()
+    searchType: this.searchType, // 来自 props
+    page: this.page.currentPage // 来自 data()
+  }
+}</code></pre>
+        <p>这解释了为什么选择产品后，<code>search()</code> 即使不接收 <code>productCode</code> 参数，也能查询到正确结果：<code>v-model</code> 已经提前把值写入 <code>this.searchForm.productCode</code>。</p>
+      </section>
+
+      <section aria-labelledby="list">
+        <h2 id="list">8. 列表与表单的两个关键机制</h2>
+
+        <h3>8.1 <code>v-for</code>：数组驱动界面</h3>
+        <pre><code class="language-markup">&lt;el-option
+  v-for="item in productOptions"
+  :key="item.value"
+  :label="item.label"
+  :value="item.value"
+/&gt;</code></pre>
+        <p>如果 <code>productOptions</code> 有三个元素，Vue 就生成三个选项。数组过滤后只剩一个元素，界面也自动只剩一个选项。<code>productOptions 改变 → v-for 重新计算 → 下拉选项更新</code>。</p>
+
+        <h3>8.2 展示值和实际值分离</h3>
+        <pre><code class="language-javascript">{
+  label: '冻猪肉丝H（10kg）',
+  value: 'PRD001'
+}</code></pre>
+        <ul>
+          <li><code>label</code> 给用户看；<code>value</code> 给程序和后端使用。</li>
+          <li>用户选择名称后，<code>searchForm.productCode = 'PRD001'</code>。</li>
+        </ul>
+        <p>因此本功能是：<strong>用户按名称寻找产品，但后端按编码精确查询。</strong></p>
+      </section>
+
+      <section aria-labelledby="reactive">
+        <h2 id="reactive">9. 响应式更新：数据为什么能自动刷新界面</h2>
+        <p>Vue 会追踪模板使用了哪些状态。例如模板 <code>&lt;avue-crud :data="tableData" /&gt;</code>，接口返回后执行 <code>this.tableData = res.data.data.records</code>，Vue 检测到 <code>tableData</code> 变化就更新表格，不需要手工调用"刷新表格"。</p>
+        <pre><code class="language-text">toDoNum 改变         -> 标题数量更新
+productOptions 改变  -> 产品候选项更新
+loading 改变         -> 加载状态更新
+page.total 改变      -> 分页总数更新</code></pre>
+        <p>这就是 Vue 的核心思路：<strong>开发者修改状态，Vue 负责同步界面。</strong></p>
+      </section>
+
+      <section aria-labelledby="pagination">
+        <h2 id="pagination">10. 分页为何要区分筛选与翻页</h2>
+        <pre><code class="language-javascript">search() {
+  this.page.currentPage = 1
+  this.getTableData()
+}</code></pre>
+        <pre><code class="language-markup">@current-change="getTableData"</code></pre>
+        <table>
+          <thead>
+            <tr><th>操作</th><th>调用</th><th>原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>修改筛选条件</td><td><code>search()</code></td><td>新结果应从第一页开始</td></tr>
+            <tr><td>修改每页条数</td><td><code>search()</code></td><td>页数结构改变，应回第一页</td></tr>
+            <tr><td>点击第 2 页</td><td><code>getTableData()</code></td><td>必须保留用户选择的新页码</td></tr>
+          </tbody>
+        </table>
+        <p>如果翻页也调用 <code>search()</code>，第 2 页会立即被重置为第 1 页。</p>
+      </section>
+
+      <section aria-labelledby="parent-child">
+        <h2 id="parent-child">11. 父子组件的两种通信方向</h2>
+        <h3>11.1 父组件向子组件传数据：<code>props</code></h3>
+        <pre><code class="language-markup">&lt;to-approval :searchType="1" /&gt;</code></pre>
+        <p>方向：<code>父组件 → props → 子组件</code>。</p>
+        <h3>11.2 子组件向父组件发事件：<code>$emit</code></h3>
+        <pre><code class="language-javascript">this.$emit('handle', row)</code></pre>
+        <pre><code class="language-markup">&lt;to-approval @handle="handle" /&gt;</code></pre>
+        <p>方向：<code>子组件当前行 row → $emit → 父组件 handle(row)</code>。</p>
+        <p>父组件还可以通过 <code>ref</code> 主动调用子组件方法：<code>this.$refs.toApproval.search()</code>。当前场景用于审批处理成功后刷新列表。</p>
+      </section>
+
+      <section aria-labelledby="filter-chain">
+        <h2 id="filter-chain">12. 产品筛选完整触发链</h2>
+        <p>下图回答：输入文字与选择产品分别触发哪些步骤？哪一步才真正查询审批列表？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="filter-chain-flow" data-fit="scroll">
+flowchart TD
+    subgraph input["输入文字（只过滤候选项）"]
+        A1["用户输入'肉丝'"] --> A2["remote-method 回调"]
+        A2 --> A3["productProductData('肉丝')"]
+        A3 --> A4["productOptions 改变"]
+        A4 --> A5["下拉候选项自动刷新"]
+    end
+    subgraph select["选择产品（才查询列表）"]
+        B1["用户选择'冻猪肉丝'"] --> B2["v-model 写入 productCode"]
+        B2 --> B3["change 事件"]
+        B3 --> B4["search()"]
+        B4 --> B5["getTableData()"]
+        B5 --> B6["审批接口"]
+        B6 --> B7["tableData 改变"]
+        B7 --> B8["表格自动刷新"]
+    end
+            </div>
+          </div>
+          <figcaption>图 2：产品筛选的两条触发链</figcaption>
+        </figure>
+        <p>需要特别区分：<strong>输入文字只过滤产品候选项；选择具体产品才查询审批列表。</strong></p>
+      </section>
+
+      <section aria-labelledby="reading">
+        <h2 id="reading">13. 如何阅读一个陌生的 Vue 页面</h2>
+        <p>下图回答：按什么顺序追踪，才能闭合"界面 → 函数 → 接口 → 数据 → 界面"的完整链路？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="reading-flow" data-fit="scroll">
+flowchart LR
+    A["① 找界面入口<br/>@click / @change / v-model"] --> B["② 找到绑定的数据"]
+    B --> C["③ 找到事件函数"]
+    C --> D["④ 追踪 API"]
+    D --> E["⑤ 追踪返回数据"]
+    E --> F["⑥ 回到模板闭合链路"]
+            </div>
+          </div>
+          <figcaption>图 3：阅读陌生 Vue 页面的五步追踪法</figcaption>
+        </figure>
+        <ol>
+          <li><strong>第一步：找界面入口</strong>——搜索 <code>@click</code>、<code>@change</code>、<code>v-model</code>、<code>:remote-method</code>，确定用户操作会触发什么。</li>
+          <li><strong>第二步：找到绑定的数据</strong>——例如 <code>v-model="searchForm.productCode"</code>，到 <code>data()</code> 中查看初始结构，并搜索谁会修改、读取它。</li>
+          <li><strong>第三步：找到事件函数</strong>——例如 <code>@change="search"</code>，到 <code>methods</code> 中找到 <code>search()</code>，再继续追踪其内部调用。</li>
+          <li><strong>第四步：追踪 API</strong>——<code>search() → getTableData() → apiGetApprovalPage(params) → API 文件中的 URL</code>。</li>
+          <li><strong>第五步：追踪返回数据</strong>——检查接口结果写入了哪个状态（<code>this.tableData = records</code>），再回到模板找 <code>:data="tableData"</code>，闭合链路。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="boot">
+        <h2 id="boot">14. 前端应用启动链路</h2>
+        <p>下图回答：从浏览器入口到具体业务页面组件，一个 Vue 应用按什么顺序被加载？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="boot-flow">
+flowchart TD
+    A["① index.html<br/>浏览器入口，加载 CDN 脚本，提供 #app 挂载点"] --> B["② main.js<br/>Vue 入口，注册全局插件/组件，new Vue()"]
+    B --> C["③ App.vue<br/>根组件，含 &lt;router-view /&gt; 路由出口"]
+    C --> D["④ router<br/>根据 URL 匹配页面组件"]
+    D --> E["⑤ 页面组件<br/>业务页面"]
+    E --> F["⑥ 子组件<br/>页面内的 Tab / 弹窗"]
+            </div>
+          </div>
+          <figcaption>图 4：前端应用启动链路</figcaption>
+        </figure>
+        <p>HTML 加载 JS → JS 创建 Vue 实例 → <code>$mount('#app')</code> 替换 loading 动画 → Vue 接管页面。</p>
+      </section>
+
+      <section aria-labelledby="advanced">
+        <h2 id="advanced">15. 进阶知识点</h2>
+
+        <h3>15.1 条件渲染：<code>v-if</code> vs <code>v-show</code></h3>
+        <table>
+          <thead>
+            <tr><th>特性</th><th><code>v-if</code></th><th><code>v-show</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>原理</td><td>条件 false → 元素<strong>不在 DOM 中</strong></td><td>元素始终在 DOM，只是 <code>display: none</code></td></tr>
+            <tr><td>切换开销</td><td>高（创建/销毁）</td><td>低（CSS 切换）</td></tr>
+            <tr><td>适用场景</td><td>组件重、切换不频繁</td><td>切换频繁</td></tr>
+          </tbody>
+        </table>
+        <p><code>v-if / v-else-if</code> 互斥渲染：从上往下判断，第一个为 true 的渲染，同一时间只有一个组件存在。</p>
+
+        <h3>15.2 路由系统</h3>
+        <ul>
+          <li><strong>两层 <code>&lt;router-view /&gt;</code> 嵌套</strong>：第一层在 App.vue（切换"登录页"与"主布局框架"）；第二层在主布局内切换具体业务页面。</li>
+          <li><strong>动态路由</strong>：路由不是写死的，而是登录后从后端拉取菜单数据动态注册，核心方法 <code>Router.$avueRouter.formatRoutes(menuAll, true)</code>。</li>
+          <li><strong><code>&lt;keep-alive&gt;</code> 缓存</strong>：包裹 <code>&lt;router-view /&gt;</code> 时，切走的页面不销毁，切回来直接恢复。</li>
+        </ul>
+
+        <h3>15.3 Flex 布局核心属性</h3>
+        <pre><code class="language-css">display: flex;                  /* 开启 flex 布局 */
+justify-content: space-between; /* 子元素两端对齐 */
+align-items: center;            /* 子元素垂直居中 */
+flex: 1;                        /* 占满剩余空间 */
+flex: none;                     /* 不伸缩，保持原始宽度 */
+min-width: 0;                   /* 防止 flex 子项内容撑开溢出 */</code></pre>
+
+        <h3>15.4 avue-crud 表格组件</h3>
+        <table>
+          <thead>
+            <tr><th>属性</th><th>作用</th><th>类比</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>:option="tableOption"</code></td><td>定义表格结构（列、样式）</td><td>骨架</td></tr>
+            <tr><td><code>:data="tableData"</code></td><td>表格数据（数组，每条数据是一行）</td><td>血肉</td></tr>
+            <tr><td><code>:page.sync="page"</code></td><td>分页信息（当前页、每页条数、总数）</td><td>翻页器</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li><code>column</code> 中的 <code>prop</code> 必须和数据对象的字段名<strong>严格一致</strong>（包括大小写）；不一致不会报错，但该列显示空白。</li>
+          <li>某列需要特殊展示（颜色、按钮、条件渲染）时用 <code>slot: true</code> 标记，再在 template 中用 <code>&lt;template slot="prop名"&gt;</code> 覆盖默认渲染。</li>
+          <li>数据流链路：<code>created() → 调用 API → 赋值 tableData → Vue 响应式 → 表格自动刷新</code>。</li>
+        </ul>
+
+        <h3>15.5 弹窗（el-dialog）</h3>
+        <table>
+          <thead>
+            <tr><th>属性</th><th>作用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>:visible.sync</code></td><td>双向绑定控制弹窗显隐</td></tr>
+            <tr><td><code>:append-to-body</code></td><td>把弹窗 DOM 插入 <code>&lt;body&gt;</code> 下，避免被 <code>overflow: hidden</code> 裁切</td></tr>
+            <tr><td><code>:destroy-on-close</code></td><td>关闭时销毁内部组件，下次打开重新创建</td></tr>
+            <tr><td><code>:before-close</code></td><td>关闭前的回调，常用于设置 <code>visible = false</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>15.6 <code>::v-deep</code> 样式穿透</h3>
+        <p>Vue 的 <code>&lt;style scoped&gt;</code> 只影响当前组件；<code>::v-deep</code> 告诉 Vue"穿透作用域，去修改子组件内部的样式"，常用于覆盖 Element UI 组件的默认样式。</p>
+
+        <h3>15.7 其他常用知识点</h3>
+        <table>
+          <thead>
+            <tr><th>知识点</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>@/</code> 路径别名</td><td>指向 <code>src/</code> 目录，在 jsconfig.json 中配置</td></tr>
+            <tr><td><code>computed</code> 计算属性</td><td>依赖的数据变化时自动重新计算，有缓存</td></tr>
+            <tr><td><code>$bus.$emit</code></td><td>事件总线，跨组件通信（不经过父子关系）</td></tr>
+            <tr><td><code>mapGetters</code></td><td>Vuex 辅助函数，把 store 中的 getter 映射为组件的 computed</td></tr>
+            <tr><td><code>ref</code></td><td>给子组件一个引用，父组件可通过 <code>this.$refs.xxx</code> 直接访问子组件实例</td></tr>
+            <tr><td><code>lazy</code>（el-tab-pane）</td><td>懒加载，第一次切到该 Tab 时才渲染内容</td></tr>
+            <tr><td>防竞态（fetchFlag / searchRequestId）</td><td>用递增序号或时间戳标记最新请求，丢弃过期的响应数据</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="component-tree">
+        <h2 id="component-tree">16. 组件树结构总览</h2>
+        <pre><code class="language-text">new Vue()（根实例）
+│
+└── App.vue（根组件）
+    ├── <router-view />  ← 第一层路由出口
+    │   │
+    │   └── page/index/index.vue（主布局框架，登录后进入）
+    │       ├── <top />（顶部导航栏）
+    │       ├── <sidebar />（左侧菜单栏）
+    │       ├── <tags />（标签页导航栏）
+    │       │
+    │       └── <router-view />  ← 第二层路由出口（业务页面）
+    │           ├── orderDepartmentManagement.vue（订单管理）
+    │           │   └── ...（12 个 Tab 子组件）
+    │           ├── orderDetail/index.vue（订单详情/审批）
+    │           │   └── toApproval.vue
+    │           └── 其他业务页面...
+    │
+    ├── <ai-assistant-float />（AI 助理浮层，登录后显示）
+    └── <ai-sidebar />（AI 助理侧边栏，登录后显示）</code></pre>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">17. 记忆卡片与自测</h2>
+        <h3>一条核心循环</h3>
+        <pre><code class="language-text">状态 -> 渲染界面 -> 用户操作 -> 修改状态/调用函数 -> 请求后端 -> 写回状态</code></pre>
+        <h3>四条模板连接线</h3>
+        <pre><code class="language-text">{{ }}    显示数据
+:prop    传入动态数据或函数
+v-model  控件与状态双向同步
+@event   事件触发函数</code></pre>
+        <h3>四类常见函数参数</h3>
+        <pre><code class="language-text">模板显式传入：handle(row)
+组件自动传入：productProductData(keyword)
+JS API 传入：map(item)、then(response)
+组件状态提供：this.searchForm、this.page</code></pre>
+        <h3>产品筛选主线</h3>
+        <pre><code class="language-text">接口产品 { productName, productCode }
+  -> 下拉选项 { label, value }
+  -> 用户选择产品名称
+  -> v-model 保存 productCode
+  -> change 调用 search
+  -> getTableData 组装请求
+  -> 后端精确查询
+  -> tableData 更新表格</code></pre>
+        <h3>三个自检问题</h3>
+        <ol>
+          <li><code>v-model</code> 和 <code>@change</code> 各自负责什么，为什么经常一起出现？</li>
+          <li><code>search()</code> 没有参数，为什么仍能取得最新的产品编码？</li>
+          <li>接口返回后只修改 <code>tableData</code>，为什么表格会自动更新？</li>
+        </ol>
+        <details>
+          <summary>参考答案</summary>
+          <ol>
+            <li><code>v-model</code> 负责把控件值写入状态（双向同步）；<code>@change</code> 负责在值变化后触发查询。先存值、再查询，所以经常成对出现。</li>
+            <li>因为 <code>v-model</code> 已提前把选中值写入 <code>this.searchForm.productCode</code>，函数从组件状态读取，无需参数传递。</li>
+            <li>模板中 <code>:data="tableData"</code> 建立了响应式依赖，Vue 检测到状态变化后自动重渲染表格。</li>
+          </ol>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '14px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis', nodeSpacing: 25, rankSpacing: 35 }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.querySelectorAll('.mermaid[data-fit="scroll"] svg').forEach(function (svg) {
+        var vb = svg.viewBox.baseVal;
+        if (vb && vb.width > 0) {
+          svg.style.setProperty('width', vb.width + 'px', 'important');
+          svg.style.setProperty('max-width', 'none', 'important');
+          svg.style.setProperty('height', 'auto', 'important');
+          svg.style.setProperty('flex-shrink', '0', 'important');
+        }
+      });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active;
+      if (atBottom) {
+        active = headings[headings.length - 1];
+      } else {
+        active = headings[0];
+        headings.forEach(function (heading) {
+          if (heading.offsetTop <= marker) active = heading;
+        });
+      }
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>

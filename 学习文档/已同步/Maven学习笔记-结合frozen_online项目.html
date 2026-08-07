@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maven 学习梳理（结合 frozen_online 项目）</title>
+  <meta name="description" content="可独立阅读的 Maven 学习文档：依赖管理、构建管理与项目结构管理">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .toc .toc-sub a { padding-left: 26px; font-size: 0.84rem; }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      padding: 20px;
+    }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #maven-map svg {
+      max-width: min(680px, 100%) !important;
+      display: block;
+      margin: 0 auto;
+    }
+
+    #lifecycle-flow svg {
+      max-width: 100% !important;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    details {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    details summary { cursor: pointer; font-weight: 650; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#core">3. 核心知识</a></li>
+          <li class="toc-sub"><a href="#dep">3.1 依赖管理</a></li>
+          <li class="toc-sub"><a href="#build">3.2 构建管理</a></li>
+          <li class="toc-sub"><a href="#structure">3.3 项目结构管理</a></li>
+          <li class="toc-sub"><a href="#versioning">3.4 版本管理：BOM 与 dependencyManagement</a></li>
+          <li class="toc-sub"><a href="#repo">3.5 仓库与发布</a></li>
+          <li><a href="#example">4. 贯穿示例：一次完整构建</a></li>
+          <li><a href="#confusion">5. 易混概念</a></li>
+          <li><a href="#misconceptions">6. 常见误区与边界</a></li>
+          <li><a href="#cheatsheet">7. 速查</a></li>
+          <li><a href="#memory">8. 记忆主线</a></li>
+          <li><a href="#quiz">9. 自测问题</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>Maven 学习梳理（结合 frozen_online 项目）</h1>
+      <p class="lead">本文把 Maven 拆成三个问题来讲：项目需要什么、源码怎样变成产物、多个模块怎样协作。适合已会写 Java 单模块程序、第一次系统接触 Maven 的读者。</p>
+      <p class="scope-note"><strong>范围：</strong>内容依据《Maven学习笔记-结合frozen_online项目.md》（更新日期 2026-07-28）。项目示例为 <code>muyuan-slaughter-opms-frozen-cost-accounting</code>，同构工程 <code>muyuan-slaughter-mdm-opms</code>；前端由 Node/Yarn 管理，不在本文范围。文中所有涉及该项目的描述均属"项目示例"，不是 Maven 的通用要求。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>Maven 是 Java 项目的<strong>依赖管理器、构建工具和项目组织工具</strong>。可以把两者对照记忆：</p>
+        <pre><code class="language-text">pom.xml = 项目说明书（声明模块、依赖和规则）
+Maven   = 按说明书工作的自动化流水线</code></pre>
+        <p>在本项目中，它负责：组织多模块 → 解析和下载依赖 → 统一依赖版本 → 编译代码与处理资源 → 运行测试 → 打包普通 Jar / 可执行 Fat Jar → 安装到本地仓库或发布到公司 Nexus →（可选）构建并推送 Docker 镜像。</p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>下图回答：Maven 的三大能力各包含什么，它们之间如何分工？Maven 的一切功能都可以归入这三大类。</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="maven-map">
+mindmap
+  root((Maven))
+    依赖管理
+      解析下载依赖
+      传递依赖
+      版本管理与冲突调解
+      作用域 scope
+      模块间引用
+    构建管理
+      生命周期阶段
+      编译与测试
+      打包 Jar / Fat Jar
+      资源复制与过滤
+      插件绑定
+    项目结构管理
+      多模块聚合
+      父子继承与统一配置
+      Reactor 构建顺序
+            </div>
+          </div>
+          <figcaption>图 1：Maven 三大能力全景</figcaption>
+        </figure>
+        <p>三者对应三个问题：依赖管理回答"项目需要什么"，构建管理回答"源码怎样变成产物"，项目结构管理回答"多个模块怎样协作"。后文第 3 节按这三大能力组织。</p>
+      </section>
+
+      <section aria-labelledby="core">
+        <h2 id="core">3. 核心知识</h2>
+
+        <h3 id="dep">3.1 依赖管理：管理程序需要的库</h3>
+        <p>依赖管理不只是"下载 Jar"，还包括传递依赖、版本选择、作用域、排除依赖和模块间引用。</p>
+
+        <h4>3.1.1 依赖坐标：GAV</h4>
+        <p>每个依赖由 GAV 唯一定位：</p>
+        <pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;com.alibaba&lt;/groupId&gt;
+    &lt;artifactId&gt;easyexcel&lt;/artifactId&gt;
+    &lt;version&gt;3.3.3&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+        <table>
+          <thead><tr><th>字段</th><th>含义</th><th>类比</th></tr></thead>
+          <tbody>
+            <tr><td><code>groupId</code></td><td>组织或产品组</td><td>厂商</td></tr>
+            <tr><td><code>artifactId</code></td><td>构件名称</td><td>商品名</td></tr>
+            <tr><td><code>version</code></td><td>构件版本</td><td>商品型号</td></tr>
+          </tbody>
+        </table>
+        <p>完整坐标写作 <code>com.alibaba:easyexcel:3.3.3</code>。</p>
+
+        <h4>3.1.2 第三方 Jar 的下载链路</h4>
+        <p>下图回答：声明一个依赖后，Maven 按什么顺序把它放进 classpath？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="download-flow">
+flowchart TD
+    A["读取 dependency 声明"] --> B{"本地 ~/.m2 有吗"}
+    B -- "有" --> F["放入 classpath"]
+    B -- "没有" --> C["查远程仓库或镜像"]
+    C --> D["下载 Jar 与其 POM"]
+    D --> E["继续解析传递依赖"]
+    E --> G["缓存到本地仓库"]
+    G --> F
+            </div>
+          </div>
+          <figcaption>图 2：依赖下载与解析链路</figcaption>
+        </figure>
+        <p>三个角色的分工：<code>dependency</code> = 下载什么；<code>repositories</code> = 去哪里下载；本地 <code>~/.m2</code> = 下载后的本地缓存与本机构件仓库。</p>
+
+        <h4>3.1.3 传递依赖</h4>
+        <p>如果 A 依赖 B、B 又依赖 C，A 通常间接获得 C。项目示例：<code>job → service → dal</code>，<code>job</code> 直接依赖 <code>service</code>，若 <code>service</code> 依赖 <code>dal</code>，则 <code>dal</code> 通常成为 <code>job</code> 的传递依赖。这减少了重复声明，但也可能带来版本冲突。</p>
+
+        <h4>3.1.4 版本冲突如何产生</h4>
+        <p>同一坐标出现多个版本时（例如 <code>easyexcel → poi 4.1.2</code>，另一个库 → <code>poi 3.17</code>），运行时通常只能保留一个，否则可能出现 <code>NoSuchMethodError</code>、<code>ClassNotFoundException</code>、<code>NoClassDefFoundError</code>。项目示例：父 POM 用 <code>dependencyManagement</code> 统一锁定 POI 版本：</p>
+        <pre><code class="language-xml">&lt;dependencyManagement&gt;
+    &lt;dependencies&gt;
+        &lt;dependency&gt;
+            &lt;groupId&gt;org.apache.poi&lt;/groupId&gt;
+            &lt;artifactId&gt;poi&lt;/artifactId&gt;
+            &lt;version&gt;4.1.2&lt;/version&gt;
+        &lt;/dependency&gt;
+    &lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;</code></pre>
+
+        <h4>3.1.5 版本冲突调解规则</h4>
+        <p>下图回答：没有强制管理时，多个版本中哪个胜出？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="conflict-mediation">
+flowchart TD
+    A["同一依赖多个版本"] --> B{"路径深度相同吗"}
+    B -- "否" --> C["路径最近者胜出"]
+    B -- "是" --> D["先声明者胜出"]
+    C --> E{"用 dependencyManagement？"}
+    D --> E
+    E -- "是" --> F["版本锁定，风险降低"]
+    E -- "否" --> G["碰巧胜出，不可靠"]
+            </div>
+          </div>
+          <figcaption>图 3：版本冲突调解决策</figcaption>
+        </figure>
+        <p>无论哪个版本胜出，运行时通常只保留一个，否则可能出现 <code>NoSuchMethodError</code> 等错误。更可靠的做法：不要依赖"碰巧胜出"，应在 <code>dependencyManagement</code> 中明确统一版本。</p>
+
+        <h4>3.1.6 排除传递依赖</h4>
+        <p>某库传递引入旧版 POI 时，可用 <code>exclusions</code> 精确排除，然后在当前项目显式声明统一版本：</p>
+        <pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;com.example&lt;/groupId&gt;
+    &lt;artifactId&gt;report-client&lt;/artifactId&gt;
+    &lt;version&gt;1.0.0&lt;/version&gt;
+    &lt;exclusions&gt;
+        &lt;exclusion&gt;
+            &lt;groupId&gt;org.apache.poi&lt;/groupId&gt;
+            &lt;artifactId&gt;poi&lt;/artifactId&gt;
+        &lt;/exclusion&gt;
+    &lt;/exclusions&gt;
+&lt;/dependency&gt;</code></pre>
+        <p><code>exclusions</code> 是处理冲突的精确工具，不能因为"依赖多"就随意排除；排除后应运行测试，确认运行期仍有完整类库。</p>
+
+        <h4>3.1.7 scope：依赖在什么时候有效</h4>
+        <table>
+          <thead><tr><th>scope</th><th>编译</th><th>测试</th><th>运行/打包</th><th>典型用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>compile</code></td><td>是</td><td>是</td><td>是</td><td>默认依赖</td></tr>
+            <tr><td><code>provided</code></td><td>是</td><td>是</td><td>通常不带入运行包</td><td>编译期工具，如 Lombok</td></tr>
+            <tr><td><code>runtime</code></td><td>否</td><td>是</td><td>是</td><td>运行期驱动等</td></tr>
+            <tr><td><code>test</code></td><td>否</td><td>是</td><td>否</td><td>JUnit、Mockito</td></tr>
+            <tr><td><code>import</code></td><td colspan="3">不适用</td><td>BOM，仅在 dependencyManagement 中使用</td></tr>
+          </tbody>
+        </table>
+        <p><code>provided</code> 的含义：编译时需要，但预期运行环境提供，或它只是编译辅助工具。</p>
+
+        <h4>3.1.8 模块间互相引用</h4>
+        <p>本项目自己的模块也通过 GAV 引用（项目示例，<code>service</code> 引用 <code>dal</code>）：</p>
+        <pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;org.muyuan&lt;/groupId&gt;
+    &lt;artifactId&gt;muyuan-slaughter-opms-frozen-cost-accounting-dal&lt;/artifactId&gt;
+    &lt;version&gt;${muyuan.slaughter.opms.frozen.cost.accounting.version}&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+        <p>在同一次根工程构建中，Maven Reactor 直接使用本次构建产生的 <code>dal</code> 模块，不一定要求它预先存在于远程仓库。若另一个独立工程要引用该模块，通常需要先 <code>install</code> 到本机，或 <code>deploy</code> 到公司 Nexus。</p>
+      </section>
+
+      <section aria-labelledby="build">
+        <h3 id="build">3.2 构建管理：把源码变成可交付产物</h3>
+        <p>Maven 构建不是单独动作，而是一条由生命周期阶段组成的流水线。</p>
+
+        <h4>3.2.1 三套生命周期</h4>
+        <table>
+          <thead><tr><th>生命周期</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>clean</code></td><td>删除上一次构建产物</td></tr>
+            <tr><td><code>default</code></td><td>编译、测试、打包、安装、发布</td></tr>
+            <tr><td><code>site</code></td><td>生成项目站点和报告</td></tr>
+          </tbody>
+        </table>
+        <p>最常使用的是 <code>clean</code> 和 <code>default</code>。</p>
+
+        <h4>3.2.2 default 生命周期的关键阶段</h4>
+        <p>下图回答：default 生命周期各阶段按什么顺序执行，执行后阶段是否包含前阶段？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="lifecycle-flow" data-fit="scroll">
+flowchart LR
+    A["validate"] --> B["compile"] --> C["test"] --> D["package"] --> E["verify"] --> F["install"] --> G["deploy"]
+            </div>
+          </div>
+          <figcaption>图 4：default 生命周期阶段</figcaption>
+        </figure>
+        <table>
+          <thead><tr><th>阶段</th><th>作用</th></tr></thead>
+          <tbody>
+            <tr><td><code>validate</code></td><td>检查项目是否可构建</td></tr>
+            <tr><td><code>compile</code></td><td>编译主代码</td></tr>
+            <tr><td><code>test</code></td><td>编译并运行单元测试</td></tr>
+            <tr><td><code>package</code></td><td>打成 Jar/War</td></tr>
+            <tr><td><code>verify</code></td><td>执行额外验证或集成测试检查</td></tr>
+            <tr><td><code>install</code></td><td>安装到本机 <code>~/.m2</code></td></tr>
+            <tr><td><code>deploy</code></td><td>发布到远程 Maven 仓库</td></tr>
+          </tbody>
+        </table>
+        <p>执行后面的阶段会自动执行前面的阶段：<code>mvn package</code> = validate + compile + test + package；<code>mvn install</code> 再多加 verify + install；<code>mvn deploy</code> 再加 deploy。</p>
+
+        <h4>3.2.3 编译配置</h4>
+        <p>项目示例：父 POM 统一配置 Java 8、UTF-8 编码，并通过 <code>-parameters</code> 保留方法参数名（便于 Spring 参数绑定和反射）：</p>
+        <pre><code class="language-xml">&lt;properties&gt;
+    &lt;java.version&gt;1.8&lt;/java.version&gt;
+    &lt;project.build.sourceEncoding&gt;UTF-8&lt;/project.build.sourceEncoding&gt;
+&lt;/properties&gt;
+
+&lt;plugin&gt;
+    &lt;artifactId&gt;maven-compiler-plugin&lt;/artifactId&gt;
+    &lt;version&gt;3.8.1&lt;/version&gt;
+    &lt;configuration&gt;
+        &lt;source&gt;${java.version}&lt;/source&gt;
+        &lt;target&gt;${java.version}&lt;/target&gt;
+        &lt;encoding&gt;UTF-8&lt;/encoding&gt;
+        &lt;compilerArgs&gt;
+            &lt;arg&gt;-parameters&lt;/arg&gt;
+        &lt;/compilerArgs&gt;
+    &lt;/configuration&gt;
+&lt;/plugin&gt;</code></pre>
+        <p>含义：允许使用 Java 8 语法，生成面向 Java 8 的 class，源码按 UTF-8 读取。</p>
+
+        <h4>3.2.4 运行测试与跳过测试</h4>
+        <p>项目示例：<code>service</code> 声明 JUnit 与 Mockito，scope 均为 <code>test</code>，只用于测试、不进入生产运行包：</p>
+        <pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;junit&lt;/groupId&gt;
+    &lt;artifactId&gt;junit&lt;/artifactId&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.mockito&lt;/groupId&gt;
+    &lt;artifactId&gt;mockito-core&lt;/artifactId&gt;
+    &lt;scope&gt;test&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+        <pre><code class="language-bash">mvn package                       # 默认运行测试
+mvn package -DskipTests           # 编译测试代码，但跳过测试执行
+mvn package -Dmaven.test.skip=true  # 通常连测试编译也跳过</code></pre>
+        <p>发布前不应习惯性跳过测试；跳过测试只适合临时定位构建问题，不能替代验证。</p>
+
+        <h4>3.2.5 打包：普通 Jar、Fat Jar 与 War</h4>
+        <ul>
+          <li><strong>普通 Jar</strong>：库模块（api、dal、service 等）的产物，主要包含本模块的 class 和资源，不塞入依赖 Jar。</li>
+          <li><strong>Fat Jar</strong>：启动模块使用 Spring Boot 插件的 <code>repackage</code>，把应用类、依赖和启动结构重新包装为可执行 Jar，可 <code>java -jar</code> 直接运行。</li>
+          <li><strong>War</strong>：用于部署到外部 Servlet 容器；当前项目子模块配置 <code>packaging</code> 为 <code>jar</code>，主要走可执行 Jar。</li>
+        </ul>
+
+        <h4>3.2.6 资源复制与资源过滤</h4>
+        <p>两者不是一回事：</p>
+        <pre><code class="language-text">资源复制 = 原样放入 target/classes（默认 src/main/resources/** → target/classes/**）
+资源过滤 = 复制时替换 ${变量}</code></pre>
+        <p>过滤示例（启用 <code>&lt;filtering&gt;true&lt;/filtering&gt;</code> 后）：</p>
+        <pre><code class="language-properties">app.name=${project.artifactId}
+app.version=${project.version}</code></pre>
+        <p class="scope-note"><strong>项目现状：</strong>当前根 POM 配置了资源目录，但未在这些 <code>resource</code> 中明确启用 <code>filtering=true</code>。因此只能确认"资源复制 + 额外收集 Java 目录 XML"，不能确认本项目已启用资源过滤。配置文件中的密码、Token 等敏感值不应通过普通 POM 属性硬编码。</p>
+
+        <h4>3.2.7 为什么额外打包 src/main/java 下的 XML</h4>
+        <p>Maven 默认不会把 <code>src/main/java</code> 下的 XML 当资源复制。项目示例：MyBatis Mapper XML 放在 Java 目录中（如 <code>...-dal/src/main/java/.../mapper/DemoMapper.xml</code>），因此父 POM 额外配置：</p>
+        <pre><code class="language-xml">&lt;resource&gt;
+    &lt;directory&gt;src/main/java&lt;/directory&gt;
+    &lt;includes&gt;
+        &lt;include&gt;**/*.xml&lt;/include&gt;
+    &lt;/includes&gt;
+&lt;/resource&gt;</code></pre>
+        <p>打包后应同时存在 <code>DemoMapper.class</code> 与 <code>DemoMapper.xml</code>。如果漏掉 XML，编译可能成功，但运行时 MyBatis 可能报 <code>Invalid bound statement (not found)</code>。</p>
+
+        <h4>3.2.8 插件与生命周期绑定</h4>
+        <p>生命周期只定义阶段，插件负责执行具体工作：compile 阶段由 maven-compiler-plugin 编译，package 阶段由 jar 插件打包，repackage 由 spring-boot-maven-plugin 重包装。项目示例还配置了 maven-antrun-plugin（package 阶段复制 Jar 到根 target）和 docker-maven-plugin（构建、标记、推送镜像）。因此：<strong>Maven 是"生命周期调度器"，插件才是具体工人</strong>。</p>
+      </section>
+
+      <section aria-labelledby="structure">
+        <h3 id="structure">3.3 项目结构管理：组织多模块工程</h3>
+
+        <h4>3.3.1 聚合与继承不是一回事</h4>
+        <p>这是多模块项目中最容易混淆的一对概念：</p>
+        <table>
+          <thead><tr><th>概念</th><th>配置位置</th><th>解决什么问题</th></tr></thead>
+          <tbody>
+            <tr><td>聚合</td><td>根 POM 的 <code>&lt;modules&gt;</code></td><td>一次构建哪些模块</td></tr>
+            <tr><td>继承</td><td>子 POM 的 <code>&lt;parent&gt;</code></td><td>子模块复用哪些配置</td></tr>
+          </tbody>
+        </table>
+        <ul>
+          <li><strong>聚合但不继承</strong>：模块 A 被根工程聚合，但它的 parent 是另一个公司父 POM。</li>
+          <li><strong>继承但不聚合</strong>：模块 B 继承某父 POM，但父 POM 没把 B 写进 <code>modules</code>，B 不会随父工程一次性构建。</li>
+        </ul>
+        <p>项目示例：根 POM 同时承担两种角色——通过 modules 组织一次构建（聚合 POM），通过 parent 给子模块继承配置（父 POM）。</p>
+
+        <h4>3.3.2 Reactor：同一次构建中的模块协调器</h4>
+        <p>下图回答：从根目录执行一次构建时，模块按什么顺序被构建？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="reactor-order">
+flowchart TD
+    A["api"] --> C["dal"]
+    B["base-common"] --> C
+    C --> D["service"]
+    D --> E["start"]
+    D --> F["job"]
+    E --> G["可执行 Fat Jar"]
+            </div>
+          </div>
+          <figcaption>图 5：Reactor 计算出的模块构建顺序（项目示例结构）</figcaption>
+        </figure>
+        <p>Reactor 负责：收集所有 modules → 读取模块依赖关系 → 计算构建顺序 → 在同一次构建中传递模块产物 → 汇总成功、失败和跳过状态。如果基础模块失败，依赖它的后续模块通常会跳过。</p>
+
+        <h4>3.3.3 继承与统一配置管理</h4>
+        <p>项目示例：父 POM 统一了 Java 版本与编码、平台/业务版本属性、公共依赖、依赖版本表、编译插件、资源目录、下载仓库、发布仓库和 Docker 插件配置。好处是"改一次父 POM → 多个子模块统一生效"；例如调整 <code>java.version</code> 时原则上无需逐个修改子 POM，但实际升级仍需验证源码、插件、依赖和运行环境兼容性。</p>
+
+        <h4>3.3.4 模块职责与依赖边界</h4>
+        <p>Maven 能声明模块依赖，但不会自动保证架构合理。推荐依赖方向（项目示例）：</p>
+        <pre><code class="language-text">api / common
+  ↑
+dal / external boundary
+  ↑
+service / job
+  ↑
+start（最终装配）</code></pre>
+        <p>应避免底层模块反向依赖启动模块，也应避免模块间循环依赖——Maven 遇到循环模块依赖时无法建立正常构建顺序。</p>
+      </section>
+
+      <section aria-labelledby="versioning">
+        <h3 id="versioning">3.4 版本管理：BOM、dependencyManagement 与 dependencies</h3>
+
+        <h4>3.4.1 BOM 是版本目录 POM</h4>
+        <p>BOM 不作为业务 Jar 进入 classpath，它把自身的 <code>dependencyManagement</code> 版本表导入当前项目（项目示例）：</p>
+        <pre><code class="language-xml">&lt;dependency&gt;
+    &lt;groupId&gt;org.muyuan.platform&lt;/groupId&gt;
+    &lt;artifactId&gt;muyuan-bom&lt;/artifactId&gt;
+    &lt;version&gt;${muyuan.tool.version}&lt;/version&gt;
+    &lt;type&gt;pom&lt;/type&gt;
+    &lt;scope&gt;import&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre>
+        <p>记忆：BOM = 公司统一版本目录；不是 = 一次性引入所有公司 Jar。</p>
+
+        <h4>3.4.2 不写 version 时版本从哪里来</h4>
+        <p>子模块写依赖可以省略 version，由父 POM 的 <code>dependencyManagement</code> 或 BOM 提供（项目示例）：</p>
+        <pre><code class="language-xml">&lt;!-- dal 中声明，无 version -->
+&lt;dependency&gt;
+    &lt;groupId&gt;org.muyuan&lt;/groupId&gt;
+    &lt;artifactId&gt;muyuan-core-tool&lt;/artifactId&gt;
+&lt;/dependency&gt;
+
+&lt;!-- 父 POM 的 dependencyManagement 提供版本 -->
+&lt;dependencyManagement&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.muyuan&lt;/groupId&gt;
+        &lt;artifactId&gt;muyuan-core-tool&lt;/artifactId&gt;
+        &lt;version&gt;${muyuan.tool.version}&lt;/version&gt;
+    &lt;/dependency&gt;
+&lt;/dependencyManagement&gt;
+
+&lt;!-- 属性最终展开为 -->
+&lt;!-- org.muyuan:muyuan-core-tool:3.0.1.MY.RELEASE --></code></pre>
+        <p>若子模块、父 <code>dependencyManagement</code>、BOM 都没有提供版本，Maven 会报缺少 version。</p>
+
+        <h4>3.4.3 三者区别</h4>
+        <table>
+          <thead><tr><th>配置</th><th>是否引入 Jar</th><th>主要作用</th></tr></thead>
+          <tbody>
+            <tr><td>BOM import</td><td>否</td><td>批量导入版本目录</td></tr>
+            <tr><td><code>dependencyManagement</code></td><td>否</td><td>管理版本、scope、排除等默认规则</td></tr>
+            <tr><td><code>dependencies</code></td><td>是</td><td>真正引入依赖</td></tr>
+          </tbody>
+        </table>
+        <p>商店类比：BOM / dependencyManagement = 商品目录；dependencies = 实际下单；repositories = 商店地址。</p>
+
+        <h4>3.4.4 根 dependencies 对子模块的影响</h4>
+        <p>父 POM 的 <code>dependencies</code> 会被子模块继承。项目示例：<code>job</code> 只声明 <code>service</code>，但仍获得父级公共依赖（如 Web、XXL-Job、Lombok 等），还可能获得 <code>service</code> 的传递依赖 <code>dal</code>。最终依赖约等于：</p>
+        <pre><code class="language-text">父级公共依赖
++ 子模块直接依赖
++ 直接依赖带来的传递依赖
+- exclusions 排除的依赖
+→ 再经过版本冲突调解</code></pre>
+      </section>
+
+      <section aria-labelledby="repo">
+        <h3 id="repo">3.5 仓库与 package、install、deploy</h3>
+
+        <h4>3.5.1 下载仓库</h4>
+        <p>项目示例：根 POM 配置阿里云公共仓（第三方公开构件）与公司 Nexus（内部构件）。Maven 通常先查本地 <code>~/.m2</code>，没有才访问远程仓库。实际企业环境还可能通过用户 <code>settings.xml</code> 配置镜像、账号和 server——POM 中的仓库不是 Maven 唯一可能使用的下载来源。</p>
+
+        <h4>3.5.2 三个阶段命令的区别</h4>
+        <table>
+          <thead><tr><th>命令</th><th>结果位置</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>mvn package</code></td><td>当前模块 <code>target</code></td><td>得到本次构建产物</td></tr>
+            <tr><td><code>mvn install</code></td><td>再放入本机 <code>~/.m2</code></td><td>给本机其他独立工程引用</td></tr>
+            <tr><td><code>mvn deploy</code></td><td>再上传远程 Nexus</td><td>给同事、服务和 CI 引用</td></tr>
+          </tbody>
+        </table>
+
+        <h4>3.5.3 Maven deploy 不是业务上线</h4>
+        <p>Maven 的 deploy 是"发布 Maven 构件"，不是把业务服务部署到生产服务器。两条链路不同（项目示例）：</p>
+        <pre><code class="language-text">业务上线链路：Maven package → start Fat Jar → Docker 镜像 → 推 Harbor → 部署到 K8s/服务器
+Maven deploy 链路：普通 Jar + POM → Nexus → 被其他 Maven 项目当依赖下载</code></pre>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">4. 贯穿示例：一次完整构建</h2>
+        <p>项目示例：在根目录执行 <code>mvn clean package</code> 的典型过程，把前文概念串成一条链路：</p>
+        <ol>
+          <li>clean 删除各模块 target</li>
+          <li>读取根 POM 和 modules（聚合）</li>
+          <li>Reactor 计算模块构建顺序（3.3.2 的依赖图）</li>
+          <li>解析父 POM、BOM、dependencyManagement（版本来源）</li>
+          <li>从本地 <code>~/.m2</code> / 远程仓库解析依赖（下载链路）</li>
+          <li>复制和处理资源（资源复制规则，含 Java 目录 XML）</li>
+          <li>按 Java 8 编译主代码（编译插件配置）</li>
+          <li>编译并运行测试（test scope 依赖生效）</li>
+          <li>为各模块打普通 Jar</li>
+          <li>start 通过 repackage 生成可执行 Fat Jar</li>
+          <li>配置的额外插件处理复制或镜像任务</li>
+        </ol>
+        <p>若执行 <code>install</code>，再把各模块构件放入本机 <code>~/.m2</code>；若执行 <code>deploy</code>，再上传到 <code>distributionManagement</code> 指定的公司 Nexus。</p>
+      </section>
+
+      <section aria-labelledby="confusion">
+        <h2 id="confusion">5. 易混概念</h2>
+        <table>
+          <thead><tr><th>概念 A</th><th>概念 B</th><th>核心区别</th></tr></thead>
+          <tbody>
+            <tr><td><code>dependencies</code></td><td><code>dependencyManagement</code></td><td>真引入 vs 只管理</td></tr>
+            <tr><td>BOM</td><td>普通 Jar</td><td>版本目录 POM vs 运行代码</td></tr>
+            <tr><td>聚合</td><td>继承</td><td>一起构建 vs 复用配置</td></tr>
+            <tr><td>资源复制</td><td>资源过滤</td><td>原样复制 vs 替换变量</td></tr>
+            <tr><td><code>package</code></td><td><code>install</code></td><td>target 产物 vs 再放入本地仓库</td></tr>
+            <tr><td>Maven deploy</td><td>业务部署</td><td>发构件到 Nexus vs 上线服务</td></tr>
+            <tr><td>普通 Jar</td><td>Fat Jar</td><td>本模块代码资源 vs 可执行且包含依赖结构</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="misconceptions">
+        <h2 id="misconceptions">6. 常见误区与边界</h2>
+        <ol>
+          <li><strong>误区：Maven 只是下载 Jar 的工具。</strong>正确理解：它同时是依赖管理器、构建工具和项目组织工具，三大能力见第 2 节地图。</li>
+          <li><strong>误区：在 dependencyManagement 中声明了依赖，子模块就不用再声明。</strong>正确理解：management 只提供版本规则，不引入 Jar；子模块仍要在 <code>dependencies</code> 中声明才会真正引入。</li>
+          <li><strong>误区：版本调解"碰巧胜出"的方案可靠。</strong>正确理解：近者优先、先声明优先只是默认规则，应通过 <code>dependencyManagement</code> 明确统一版本。</li>
+          <li><strong>误区：发布前跳过测试无所谓。</strong>正确理解：跳过测试只适合临时定位构建问题，不能替代验证。</li>
+          <li><strong>误区：配置了 resource 目录就是资源过滤。</strong>正确理解：复制是原样放入，过滤才替换 <code>${...}</code> 变量；项目示例当前未启用 <code>filtering=true</code>。</li>
+          <li><strong>误区：Maven deploy 就是上线部署。</strong>正确理解：deploy 发布构件供其他 Maven 工程使用；业务上线是把应用或镜像运行在目标环境。</li>
+        </ol>
+        <p><strong>其他边界：</strong>exclusions 是精确工具，不能随意排除；升级 Java 版本等父 POM 改动仍需验证兼容性；POM 中的仓库不是唯一下载来源（settings.xml 镜像也可能生效）。</p>
+      </section>
+
+      <section aria-labelledby="cheatsheet">
+        <h2 id="cheatsheet">7. 速查</h2>
+        <table>
+          <thead><tr><th>目标</th><th>命令或概念</th><th>关键条件</th></tr></thead>
+          <tbody>
+            <tr><td>清理构建产物</td><td><code>mvn clean</code></td><td>删除各模块 target</td></tr>
+            <tr><td>编译主代码</td><td><code>mvn compile</code></td><td>—</td></tr>
+            <tr><td>运行单元测试</td><td><code>mvn test</code></td><td>—</td></tr>
+            <tr><td>打包</td><td><code>mvn clean package</code></td><td>默认会经过测试</td></tr>
+            <tr><td>临时跳过测试执行</td><td><code>mvn clean package -DskipTests</code></td><td>仍编译测试代码</td></tr>
+            <tr><td>连测试编译也跳过</td><td><code>mvn clean package -Dmaven.test.skip=true</code></td><td>仅临时定位用</td></tr>
+            <tr><td>安装到本地仓库</td><td><code>mvn clean install</code></td><td>进入 <code>~/.m2</code></td></tr>
+            <tr><td>发布到远程仓库</td><td><code>mvn clean deploy</code></td><td>进入 Nexus</td></tr>
+            <tr><td>查看某模块最终依赖树</td><td><code>mvn dependency:tree -pl &lt;module&gt;</code></td><td>-pl 选择模块</td></tr>
+            <tr><td>查看继承合并后的有效 POM</td><td><code>mvn help:effective-pom -pl &lt;module&gt;</code></td><td>调试版本来源</td></tr>
+            <tr><td>构建某模块及其所依赖模块</td><td><code>mvn package -pl &lt;module&gt; -am</code></td><td>-am 同时构建依赖的 Reactor 模块</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">8. 记忆主线</h2>
+        <ul>
+          <li><strong>一句话主线：</strong>POM 声明模块、依赖和规则 → Maven Reactor 按依赖顺序构建 → 插件完成资源、编译、测试和打包 → 构件可留在 target、安装到 <code>~/.m2</code> 或发布到 Nexus。</li>
+          <li>pom.xml = 项目说明书；Maven = 按说明书工作的自动化流水线。</li>
+          <li>dependency = 下载什么；repositories = 去哪里下载；<code>~/.m2</code> = 本地缓存。</li>
+          <li>BOM / dependencyManagement = 商品目录（只管理版本）；dependencies = 实际下单（真正引入）。</li>
+          <li>聚合用 <code>modules</code>（一起构建）；继承用 <code>parent</code>（复用配置）。</li>
+          <li>生命周期：执行后面的阶段自动包含前面的阶段。</li>
+          <li>资源复制原样搬，资源过滤替换 <code>${...}</code>。</li>
+          <li>package → target；install → <code>~/.m2</code>；deploy → Nexus；Maven deploy ≠ 业务上线。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="quiz">
+        <h2 id="quiz">9. 自测问题</h2>
+        <ol>
+          <li><code>dependency</code> 和 <code>repositories</code> 分别决定什么？</li>
+          <li><code>dependencyManagement</code> 中声明 EasyExcel 后，为什么子模块还要再声明依赖？</li>
+          <li><code>muyuan-bom</code> 为什么写 <code>type=pom</code> 和 <code>scope=import</code>？</li>
+          <li>Maven 遇到同一依赖多个版本时如何调解？本项目 POI 如何统一？</li>
+          <li><code>job → service → dal</code> 中，dal 为什么可能成为 job 的传递依赖？</li>
+          <li>聚合和继承分别通过哪个 XML 节点实现？</li>
+          <li>为什么根目录一次构建能按 api、dal、service、start 的关系排序？</li>
+          <li>资源复制和资源过滤有什么区别？本项目是否明确启用了过滤？</li>
+          <li>为什么 Java 目录中的 Mapper XML 需要额外配置？</li>
+          <li><code>package</code>、<code>install</code>、<code>deploy</code> 的产物最终分别放在哪里？</li>
+          <li>为什么 service 通常跳过 Spring Boot repackage，而 start 执行 repackage？</li>
+          <li>Maven deploy 为什么不是业务上线部署？</li>
+        </ol>
+        <details>
+          <summary>参考答案</summary>
+          <ol>
+            <li>dependency 决定下载什么；repositories 决定去哪里找。</li>
+            <li>management 只提供版本规则，不真正引入 Jar。</li>
+            <li>因为它导入的是版本目录 POM，不是业务 Jar。</li>
+            <li>默认近者优先、同深度先声明优先；本项目用 dependencyManagement 锁定 POI 4.1.2。</li>
+            <li>Maven 默认解析直接依赖的传递依赖，除非 scope 或 exclusions 阻止。</li>
+            <li>聚合用 <code>&lt;modules&gt;</code>；继承用子 POM 的 <code>&lt;parent&gt;</code>。</li>
+            <li>Reactor 收集模块并根据依赖图计算顺序。</li>
+            <li>复制是原样复制，过滤会替换 <code>${...}</code>；当前 POM 未明确设置 <code>filtering=true</code>。</li>
+            <li>Maven 默认不把 <code>src/main/java/**/*.xml</code> 当资源，漏包会导致 MyBatis 运行期找不到语句。</li>
+            <li>target、本机 <code>~/.m2</code>、远程 Nexus。</li>
+            <li>service 是库 Jar；start 是最终可执行应用。</li>
+            <li>deploy 发布构件给其他 Maven 工程使用；业务上线是把应用或镜像运行在目标环境。</li>
+          </ol>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis', nodeSpacing: 25, rankSpacing: 35 },
+        mindmap: { padding: 8 },
+        sequence: { useMaxWidth: true, actorMargin: 50 },
+        er: { useMaxWidth: true }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.querySelectorAll('.mermaid[data-fit="scroll"] svg').forEach(function (svg) {
+        var vb = svg.viewBox.baseVal;
+        if (vb && vb.width > 0) {
+          svg.style.setProperty('width', vb.width + 'px', 'important');
+          svg.style.setProperty('max-width', 'none', 'important');
+          svg.style.setProperty('height', 'auto', 'important');
+          svg.style.setProperty('flex-shrink', '0', 'important');
+        }
+      });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active = headings[0];
+      headings.forEach(function (heading) {
+        if (heading.offsetTop <= marker) active = heading;
+      });
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+
+    window.knowledgeDocument = {
+      renderMermaid: renderMermaid
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spring Boot 约定配置与启动机制学习梳理</title>
+  <meta name="description" content="约定优于配置、Spring Boot 启动过程、请求分发链路、Maven 与 Boot 边界、自动配置与 Bean 生命周期的可独立学习文档">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .toc .toc-sub {
+      padding-left: 22px;
+      font-size: 0.84rem;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .diagram-shell:not(.pan-zoom-container) { padding: 20px; }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell:not(.pan-zoom-container) .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #boot-flow svg,
+    #request-flow svg {
+      max-width: min(420px, 100%) !important;
+      display: block;
+      margin: 0 auto;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    details {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 650;
+      color: var(--accent);
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#prereq">3. 必要前置知识</a></li>
+          <li><a href="#foundation">4. 核心知识（一）：约定与分工</a></li>
+          <li><a href="#assembly">5. 核心知识（二）：Bean 装配机制</a></li>
+          <li><a href="#project-org">6. 核心知识（三）：工程组织与配置</a></li>
+          <li><a href="#boot-process">7. 核心知识（四）：启动过程</a></li>
+          <li><a href="#request-chain">8. 核心知识（五）：请求链路与响应</a></li>
+          <li><a href="#example">9. 贯穿示例</a></li>
+          <li><a href="#confusion">10. 易混概念速查</a></li>
+          <li><a href="#misconceptions">11. 常见误区与边界</a></li>
+          <li><a href="#project-example">12. 项目示例：企业应用落地</a></li>
+          <li><a href="#cheatsheet">13. 速查表</a></li>
+          <li><a href="#memory">14. 记忆主线</a></li>
+          <li><a href="#quiz">15. 自测问题</a></li>
+          <li><a href="#evidence">16. 证据与时效边界</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>Spring Boot 约定配置与启动机制学习梳理</h1>
+      <p class="lead">系统梳理"约定优于配置、Spring Boot 启动过程、请求如何到达 Controller、Maven 与 Boot 边界、自动配置与 Bean 生命周期"等可迁移知识。适合已了解 Java 与基础 Web 概念、正在学习 Spring Boot 的读者。</p>
+      <p class="scope-note"><strong>范围：</strong>正文以通用机制为主，不依赖任何具体项目；第 12 章"项目示例"标注为当前实现示例，不代表所有系统都应照搬。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>Spring Boot Web 服务本质上是：在一个<strong>长期运行的 JVM 进程</strong>中，先按约定和配置装配好 Bean、路由与内嵌 Web 服务器，再持续接收 HTTP 请求，并通过 Spring MVC 将请求分发到对应 Controller 方法。</p>
+        <p>它要解决的核心问题：</p>
+        <ol>
+          <li>如何用尽量少的配置把业务代码装进可运行的 Web 服务；</li>
+          <li>启动时到底准备了什么；</li>
+          <li>请求真正进入 Controller 之前经过了哪些环节；</li>
+          <li>Maven、Spring Framework、Spring Boot 各自负责哪一段。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>整套知识可以分成四层：</p>
+        <table>
+          <thead><tr><th>层级</th><th>关注点</th><th>典型问题</th></tr></thead>
+          <tbody>
+            <tr><td>构建层</td><td>Maven 如何把依赖和模块装进可运行包</td><td>为什么 <code>pom</code> 里写 Starter</td></tr>
+            <tr><td>约定层</td><td>为什么少写配置也能跑</td><td>为什么放对包名就不用写扫描配置</td></tr>
+            <tr><td>启动层</td><td>服务启动时准备了什么</td><td>Bean、路由、端口何时就绪</td></tr>
+            <tr><td>请求层</td><td>一次 HTTP 请求如何处理</td><td>请求为何不是直接落到 Controller</td></tr>
+          </tbody>
+        </table>
+
+        <figure>
+          <div class="diagram-shell">
+            <div id="boot-flow" class="mermaid">
+flowchart TD
+    A["Maven 打包<br/>Starter 依赖进入 classpath"] --> B["执行 main()<br/>准备 Environment"]
+    B --> C["按依赖判断应用类型<br/>（如 Servlet Web）"]
+    C --> D["组件扫描 + 自动配置<br/>注册 BeanDefinition"]
+    D --> E["实例化 Bean<br/>依赖注入 + AOP 代理"]
+    E --> F["创建内嵌 Web 服务器<br/>注册 DispatcherServlet / Filter"]
+    F --> G["扫描 Controller 建立路由表"]
+    G --> H["绑定端口，发布启动完成事件<br/>应用就绪"]
+            </div>
+          </div>
+          <figcaption>问题：服务启动时到底准备了什么？——答案：Maven 装包 → Boot 装配 → 路由与端口就绪</figcaption>
+        </figure>
+
+        <blockquote>关键认知：扫描类、创建 Bean、建立路由、创建连接池，通常在<strong>启动阶段</strong>完成；请求阶段复用这些结果，而不是每次请求重新扫描和重建。</blockquote>
+      </section>
+
+      <section aria-labelledby="prereq">
+        <h2 id="prereq">3. 必要前置知识</h2>
+        <ul>
+          <li><strong>JVM 进程</strong>：<code>java -jar</code> 启动后得到一个长期运行的 Java 进程。</li>
+          <li><strong>classpath</strong>：JVM 能加载到的类和资源集合；Maven 依赖最终进入这里。</li>
+          <li><strong>Bean</strong>：由 Spring 容器创建、注入和管理的对象。</li>
+          <li><strong>依赖注入</strong>：对象不自己 <code>new</code> 依赖，而由容器注入。</li>
+          <li><strong>HTTP 基本概念</strong>：方法、路径、请求头、请求体、状态码、响应体。</li>
+          <li><strong>Servlet 模型</strong>：请求先进入 Web 容器，再进入 Servlet/Filter 处理链。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="foundation">
+        <h2 id="foundation">4. 核心知识（一）：约定与分工</h2>
+
+        <h3>4.1 约定优于配置</h3>
+        <ul>
+          <li><strong>是什么</strong>：框架先规定一套通用目录、命名、依赖和默认行为；代码遵守约定时，框架自动完成大量装配；只有偏离默认或环境相关的内容才需要显式配置。</li>
+          <li><strong>如何工作</strong>：Spring Boot 通过启动类位置、包结构、注解、classpath 依赖、标准配置文件名和属性名推断应装配什么。</li>
+          <li><strong>边界或易错点</strong>：约定不等于零配置；数据库地址、密钥、环境参数、事务边界、业务规则都不能靠框架猜。也不要把"Maven 里写了依赖"本身叫做 Spring Boot 约定——那只是把 JAR 放进 classpath。</li>
+        </ul>
+        <pre><code class="language-text">稳定且通用 -> 约定
+变化且重要 -> 配置
+独特业务决策 -> 代码或领域模型</code></pre>
+        <p><strong>适合约定的例子</strong>：启动类位于根包、业务代码放在子包；Controller 用 <code>@RestController</code>、Service 用 <code>@Service</code>；配置文件命名为 <code>application.yml</code> / <code>application-{profile}.yml</code>；引入 <code>spring-boot-starter-web</code> 后按 Web 应用默认装配。</p>
+        <p><strong>必须显式配置的例子</strong>：数据库 URL/用户名/密码；注册中心与配置中心地址；当前激活环境；多个实现类中选择哪一个；事务边界与业务优先级规则；代码放在默认扫描范围之外时的包路径。</p>
+
+        <h3>4.2 Maven 与 Spring Boot 的边界</h3>
+        <p><strong>Maven 负责构建期</strong>（依赖、编译、模块、打包），<strong>Spring Boot 负责运行期</strong>（根据 classpath 和配置装配应用）。Starter 出现在 <code>pom</code> 里，不代表它是 Maven 的能力；Starter 的"组合依赖 + 自动生效"是 Spring Boot 设计的，Maven 只负责下载和入包。</p>
+        <pre><code class="language-text">Maven = 装进来
+Spring Boot = 让它变成可用 Bean / 运行能力</code></pre>
+        <table>
+          <thead><tr><th>步骤</th><th>负责方</th><th>结果</th></tr></thead>
+          <tbody>
+            <tr><td>在 <code>pom</code> 写 <code>spring-boot-starter-web</code></td><td>Maven</td><td>Web 相关 JAR 进入 classpath</td></tr>
+            <tr><td>启动时发现 Web 环境并装配 MVC</td><td>Spring Boot</td><td>创建 <code>DispatcherServlet</code> 等基础设施</td></tr>
+            <tr><td>业务类加 <code>@RestController</code></td><td>开发者 + 组件扫描</td><td>业务 Controller 成为 Bean</td></tr>
+            <tr><td>打包 fat JAR</td><td>Maven + Spring Boot 插件</td><td>得到可执行包</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.3 Spring Framework 与 Spring Boot</h3>
+        <p>Spring Framework 提供 IoC、依赖注入、AOP、事务等核心对象管理能力；Spring Boot 在其上增加自动配置、Starter、约定、内嵌服务器、可执行 JAR 和外部化配置。组件扫描、DI、AOP 主要是 Spring Framework 的能力；Boot 更强的是基础设施自动注册与约定。</p>
+        <pre><code class="language-text">Spring：管对象
+Boot：尽量自动决定该创建哪些基础设施 Bean，并快速装配成可运行服务</code></pre>
+
+        <h3>4.4 Starter 与自动配置</h3>
+        <ul>
+          <li><strong>Starter</strong>：Spring Boot 设计的能力组合包，通常通过 Maven 引入；</li>
+          <li><strong>自动配置</strong>：启动时按条件决定创建哪些基础设施 Bean 的机制。</li>
+          <li><strong>边界</strong>：引入依赖不等于业务已经使用该能力；classpath 有 Redis/MQ 依赖，不代表代码里真的在用缓存或消息。</li>
+        </ul>
+        <pre><code class="language-text">存在 Web 依赖且是 Servlet Web 应用 -> 配置 Spring MVC 与内嵌服务器
+存在 MongoDB Starter 且有连接信息 -> 创建 MongoClient / MongoTemplate
+用户已自定义同名基础设施 Bean -> 通常不再重复创建默认实现</code></pre>
+        <p>常见条件判断：某类是否在 classpath；某属性是否存在；用户是否已提供同类 Bean；当前是否为 Web 应用。</p>
+        <p><strong>自动配置元数据在哪里</strong>：候选类通常登记在<strong>依赖 JAR 内部</strong>，不是业务工程的 <code>src/main/resources</code>。</p>
+        <table>
+          <thead><tr><th>Boot 版本倾向</th><th>常见位置</th></tr></thead>
+          <tbody>
+            <tr><td>经典 / 2.x 常见</td><td><code>META-INF/spring.factories</code></td></tr>
+            <tr><td>2.7 过渡期</td><td>也可能同时存在 <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code></td></tr>
+            <tr><td>Boot 3 主流</td><td>上述 <code>AutoConfiguration.imports</code></td></tr>
+          </tbody>
+        </table>
+        <p>注意：<code>spring.factories</code> 是<strong>文件</strong>不是目录；它回答"有哪些自动配置类可被考虑"，不等于这些类一定会生效，是否生效仍看条件注解。</p>
+      </section>
+
+      <section aria-labelledby="assembly">
+        <h2 id="assembly">5. 核心知识（二）：Bean 装配机制</h2>
+
+        <h3>5.1 三个常被混用的词</h3>
+        <table>
+          <thead><tr><th>术语</th><th>真正含义</th><th>典型例子</th></tr></thead>
+          <tbody>
+            <tr><td><strong>自动配置</strong></td><td>启动时按条件创建基础设施 Bean</td><td>自动提供 <code>DataSource</code>、<code>MongoTemplate</code>、MVC</td></tr>
+            <tr><td><strong>自动装配 / 依赖注入</strong></td><td>把已有 Bean 注入到需要它的地方</td><td><code>@Autowired</code> / 构造器注入 Service</td></tr>
+            <tr><td><strong>动态配置</strong></td><td>运行期从配置中心读取或刷新配置</td><td>Nacos、<code>@RefreshScope</code></td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-text">自动配置：决定创建哪些基础设施 Bean
+自动装配：把 Bean 注入到另一个 Bean
+动态配置：改的是 Environment 中的属性值，不一定重新走整套自动配置</code></pre>
+
+        <h3>5.2 组件扫描与 Bean 装配</h3>
+        <p><code>@SpringBootApplication</code> 通常包含配置类、自动配置和组件扫描。默认从启动类所在包向下扫描 <code>@Component</code>、<code>@Service</code>、<code>@Repository</code>、<code>@Controller</code>、<code>@RestController</code>、<code>@Configuration</code> 等。类不在扫描范围内就不会成为 Bean；同一接口有多个实现时，"按类型注入"可能产生歧义，需要 <code>@Primary</code> 或 <code>@Qualifier</code>。</p>
+        <pre><code class="language-text">扫描到 @Service 实现类
+  -> 注册为 BeanDefinition
+  -> 创建实例
+  -> 注入依赖
+  -> 可能包装成事务/AOP 代理
+  -> 放入 ApplicationContext</code></pre>
+
+        <h3>5.3 @ComponentScan 与 @MapperScan</h3>
+        <p>Mapper 通常是<strong>接口</strong>，没有直接实现类，需要 MyBatis 生成代理（如通过 <code>MapperFactoryBean</code>）后才能注入。Feign 接口同理：由 OpenFeign 生成 HTTP 客户端代理后再注册为 Spring Bean。</p>
+        <table>
+          <thead><tr><th>对比项</th><th>@ComponentScan</th><th>@MapperScan</th></tr></thead>
+          <tbody>
+            <tr><td>目标</td><td>业务/普通 Spring 组件</td><td>Mapper 接口代理</td></tr>
+            <tr><td>典型对象</td><td>有实现体的类</td><td>接口</td></tr>
+            <tr><td>创建方式</td><td>反射实例化或配置类</td><td>MyBatis 代理</td></tr>
+            <tr><td>多数据源</td><td>不直接解决</td><td>可指定 SqlSession 工厂</td></tr>
+          </tbody>
+        </table>
+
+        <h3>5.4 组件扫描 vs 自动配置</h3>
+        <table>
+          <thead><tr><th>对比项</th><th>组件扫描</th><th>自动配置</th></tr></thead>
+          <tbody>
+            <tr><td>主要目标</td><td>业务组件</td><td>框架基础设施</td></tr>
+            <tr><td>定义来源</td><td>项目中带组件注解的类</td><td>依赖 JAR 中的自动配置类及其 <code>@Bean</code></td></tr>
+            <tr><td>条件强弱</td><td>扫到通常就注册</td><td>强依赖条件判断</td></tr>
+            <tr><td>后续生命周期</td><td colspan="2">同一套 IoC 生命周期（实例化、注入、初始化）</td></tr>
+          </tbody>
+        </table>
+        <p><strong>易错点</strong>：以为"扫描到类之后还要再走一遍自动配置，Bean 才会生成"。实际上扫描本身就会注册业务 Bean 定义；自动配置主要补基础设施。</p>
+
+        <h3>5.5 BeanDefinition 与实例化两阶段</h3>
+        <p>容器先收集"如何创建对象"的说明书，再真正 <code>new</code> 并初始化：<strong>注册阶段</strong>写入 <code>BeanDefinition</code>（类型、作用域、依赖、初始化/销毁方法、是否懒加载等）；<strong>实例化阶段</strong>创建对象、填充属性、AOP 代理、初始化回调，再放入单例池。懒加载 Bean 可能延后到首次使用才实例化；默认单例通常在启动期 eager 创建。</p>
+        <pre><code class="language-text">找到类 / 导入自动配置
+  -> 注册 BeanDefinition
+  -> （稍后）实例化 + 依赖注入 + 初始化
+  -> 可被其他对象注入使用</code></pre>
+
+        <h3>5.6 基础设施是不是 Bean</h3>
+        <p><code>DispatcherServlet</code>、<code>ObjectMapper</code>、<code>DataSource</code>、<code>MongoTemplate</code>、WebServer 工厂等，绝大多数是 Bean，或由 Bean 创建和管理。自动配置类通过 <code>@Bean</code> 方法把这些对象纳入 IoC。有些运行时对象由 Factory Bean 创建后启动，不一定总以"业务侧直接注入的同名 Bean"形态出现，但仍在 Spring 生命周期协调下。</p>
+      </section>
+
+      <section aria-labelledby="project-org">
+        <h2 id="project-org">6. 核心知识（三）：工程组织与配置</h2>
+
+        <h3>6.1 企业多模块与单进程装配</h3>
+        <p>代码可以拆成多个 Maven 模块，但最终仍可由一个 <code>start</code> 模块依赖并打成一个可执行 JAR，运行在<strong>同一个 JVM 和同一个 Spring 容器</strong>中。<strong>Maven 多模块不等于多个微服务</strong>；只有 <code>start</code> 才是完整可启动入口，<code>service</code>/<code>dal</code>/<code>job</code> 通常不是独立进程。</p>
+        <table>
+          <thead><tr><th>模块类型</th><th>常见职责</th></tr></thead>
+          <tbody>
+            <tr><td><code>api</code></td><td>DTO、VO、跨服务契约</td></tr>
+            <tr><td><code>dal</code></td><td>Entity、Mapper、Repository</td></tr>
+            <tr><td><code>service</code></td><td>Controller、Service、业务编排</td></tr>
+            <tr><td><code>external-api</code></td><td>出站 Feign 客户端</td></tr>
+            <tr><td><code>job</code></td><td>定时任务入口</td></tr>
+            <tr><td><code>start</code></td><td>启动类、配置、最终可执行包</td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-text">多个业务模块 JAR
+  -> start 模块依赖并装配
+  -> 一个可执行 JAR
+  -> 一个 JVM 进程
+  -> 一个 Spring 容器</code></pre>
+
+        <h3>6.2 配置来源、服务名与环境差异</h3>
+        <p>Spring 环境由多层属性源组成：命令行参数、系统属性、环境变量、本地配置文件、外部配置中心等。<code>application.yml</code> 提供通用默认；<code>application-{profile}.yml</code> 提供环境差异；占位符如 <code>${db.url}</code> 从更高优先级属性源解析。</p>
+        <ul>
+          <li>本地 profile 文件为空时，并不代表应用无配置，只说明真实值可能来自 Nacos、环境变量或启动参数；</li>
+          <li><strong>Nacos 等配置中心不会改写本地 <code>application.yml</code> 文件</strong>，而是把属性合并进运行时 <code>Environment</code>；</li>
+          <li><strong>服务名常量 alone 无效</strong>，必须在启动时真正传给启动器/注册逻辑后才成为运行时身份（注册中心登记、服务发现、远程配置定位、日志监控标识）。它不是端口，也不是 Java 包名。</li>
+        </ul>
+        <pre><code class="language-text">application.yml
++ application-dev.yml
++ 外部配置中心 / 环境变量 / 启动参数
+= 最终 Environment</code></pre>
+        <p><strong>适合放本地</strong>：端口默认值、MyBatis 映射规则、文档扫描包、与环境无关的框架开关。<strong>适合放外部</strong>：数据库连接、注册中心地址、对象存储密钥、任务调度中心地址。</p>
+      </section>
+
+      <section aria-labelledby="boot-process">
+        <h2 id="boot-process">7. 核心知识（四）：启动过程</h2>
+
+        <h3>7.1 启动五步与关键主线</h3>
+        <p>从 <code>main()</code> 开始，到端口监听成功、应用可接收请求为止的准备过程。可压缩为五步：</p>
+        <pre><code class="language-text">1. Maven/打包结果进入 JVM
+2. 准备 Environment
+3. 扫描并注册 BeanDefinition，执行自动配置
+4. 实例化 Bean，建立 Web 路由与服务器
+5. 绑定端口并就绪</code></pre>
+        <p>更细的主线：加载启动类执行 <code>main()</code> → 创建 Spring 应用读取多层配置 → 按依赖判断应用类型（如 Servlet Web）→ 扫描业务组件、Mapper、Feign 并注册 Bean 定义 → 自动配置创建 Web、数据源、Mongo、事务等基础设施 → 创建单例 Bean 完成 DI 与 AOP → 创建内嵌服务器（Undertow 或 Tomcat）→ 注册 <code>DispatcherServlet</code>、Filter → 扫描 Controller 建立路由表 → 绑定端口、发布启动完成事件。</p>
+        <p><strong>边界</strong>：启动完成不等于所有健康检查、服务注册或流量接入都已完成，尤其在容器编排环境中。</p>
+
+        <h3>7.2 如何真正把服务跑起来</h3>
+        <table>
+          <thead><tr><th>场景</th><th>做法</th><th>注意</th></tr></thead>
+          <tbody>
+            <tr><td>本地开发</td><td>运行 <code>start</code> 模块启动类的 <code>main</code></td><td>不要误跑只有业务代码的子模块</td></tr>
+            <tr><td>部署</td><td>先 <code>mvn clean package</code>，再运行 <code>start</code> 产出的可执行 JAR</td><td>子模块 JAR 通常不是完整服务</td></tr>
+            <tr><td>外部配置</td><td>用启动参数/环境变量提供注册中心、profile 等</td><td>本地 yml 可能只有占位符</td></tr>
+          </tbody>
+        </table>
+
+        <h3>7.3 内嵌 Web 服务器与端口监听</h3>
+        <p>Spring Boot Web 应用通常内嵌 Tomcat、Undertow 或 Jetty，由应用进程自己监听端口，而不是必须部署到外部应用服务器。业务代码通常不自己写 <code>while(true)</code> 轮询端口；真正监听端口的是 Web 服务器，它依赖操作系统网络能力高效等待连接。</p>
+        <pre><code class="language-text">没有请求时
+  -> 不需要业务线程空转检查端口
+  -> 操作系统等待网络事件
+
+请求到达时
+  -> 操作系统通知 Web 服务器
+  -> 服务器解析 HTTP
+  -> 进入处理链</code></pre>
+        <table>
+          <thead><tr><th>对比项</th><th>Tomcat</th><th>Undertow</th></tr></thead>
+          <tbody>
+            <tr><td>常见印象</td><td>经典 Servlet 容器</td><td>更偏事件驱动</td></tr>
+            <tr><td>线程模型</td><td>同步业务中常见"一请求一 worker"</td><td>常区分 IO 线程与 Worker 线程</td></tr>
+            <tr><td>在 Boot 中的角色</td><td colspan="2">都是内嵌服务器之一，接收 HTTP 并交给 Spring MVC</td></tr>
+          </tbody>
+        </table>
+        <blockquote>重要纠正：使用 Undertow <strong>不等于</strong>业务自动变成全异步非阻塞。若 Controller/Service 仍调用阻塞 JDBC、同步 Feign、同步 Mongo API，请求仍然会占用 Worker 线程直到结束。经典 Spring MVC 可近似理解为：一次同步请求在处理期间通常占用一个 Worker 线程。</blockquote>
+      </section>
+
+      <section aria-labelledby="request-chain">
+        <h2 id="request-chain">8. 核心知识（五）：请求链路与响应</h2>
+
+        <figure>
+          <div class="diagram-shell">
+            <div id="request-flow" class="mermaid">
+flowchart TD
+    A["客户端请求"] --> B["内嵌 Web 服务器<br/>TCP/IP + HTTP 解析"]
+    B --> C["Servlet Filter 链<br/>编码 / CORS / 认证（可短路 401）"]
+    C --> D["DispatcherServlet<br/>前端控制器"]
+    D --> E["HandlerMapping<br/>按启动期路由表找方法"]
+    E --> F["拦截器 + HandlerAdapter<br/>参数解析 / 校验"]
+    F --> G["Controller → Service → 数据访问"]
+    G --> H["返回值处理<br/>HttpMessageConverter 序列化"]
+    H --> I["HTTP 响应返回客户端"]
+            </div>
+          </div>
+          <figcaption>问题：请求到达 8080 后会立刻进入 Controller 吗？——不会，中间还有服务器、Filter、分发与参数解析</figcaption>
+        </figure>
+
+        <h3>8.1 DispatcherServlet 与请求分发</h3>
+        <p><code>DispatcherServlet</code> 是 Spring MVC 的前端控制器，几乎所有进入 MVC 的请求都先到它，再由它协调后续组件。它不自己写业务，而是问"谁处理、怎么调、参数从哪来、返回值怎么写、异常怎么转"。</p>
+        <pre><code class="language-text">Undertow / Tomcat：网络请求如何进入进程
+DispatcherServlet：请求应该交给哪个 Java 方法</code></pre>
+        <table>
+          <thead><tr><th>组件</th><th>职责</th></tr></thead>
+          <tbody>
+            <tr><td><code>HandlerMapping</code></td><td>根据请求找到 Handler 方法</td></tr>
+            <tr><td><code>HandlerAdapter</code></td><td>真正调用 Handler 并处理参数/返回值</td></tr>
+            <tr><td><code>HandlerMethodArgumentResolver</code></td><td>把 HTTP 数据变成方法参数</td></tr>
+            <tr><td><code>HandlerMethodReturnValueHandler</code></td><td>处理返回值</td></tr>
+            <tr><td><code>HttpMessageConverter</code></td><td>JSON 等与 Java 对象互转</td></tr>
+            <tr><td><code>HandlerExceptionResolver</code></td><td>统一处理异常</td></tr>
+            <tr><td><code>HandlerInterceptor</code></td><td>Controller 调用前后的横切逻辑</td></tr>
+          </tbody>
+        </table>
+
+        <h3>8.2 启动时建立路由表</h3>
+        <p>Spring MVC 在启动阶段扫描 Controller 上的映射注解，提前建立"请求条件 → Java 方法"的映射。不是每次请求都遍历全部 Controller 类去"现找方法"——这也是为什么冲突路由常在启动期暴露、请求期分发可以很快。</p>
+        <table>
+          <thead><tr><th>情况</th><th>典型结果</th></tr></thead>
+          <tbody>
+            <tr><td>路径不存在</td><td>404</td></tr>
+            <tr><td>路径存在但方法不对</td><td>405</td></tr>
+            <tr><td>媒体类型不支持</td><td>415 / 406</td></tr>
+            <tr><td>条件匹配成功</td><td>得到 <code>HandlerMethod</code></td></tr>
+          </tbody>
+        </table>
+        <p>匹配时除了路径，还可能看：HTTP 方法、<code>Content-Type</code>、<code>Accept</code>、请求头或请求参数条件。</p>
+
+        <h3>8.3 Filter 与 Interceptor</h3>
+        <table>
+          <thead><tr><th>对比项</th><th>Filter</th><th>Interceptor</th></tr></thead>
+          <tbody>
+            <tr><td>所属层次</td><td>Servlet</td><td>Spring MVC</td></tr>
+            <tr><td>位置</td><td><code>DispatcherServlet</code> 外围</td><td>Handler 调用前后</td></tr>
+            <tr><td>是否知道具体 Controller 方法</td><td>通常不知道</td><td>通常知道</td></tr>
+            <tr><td>常见用途</td><td>编码、CORS、认证、请求包装</td><td>权限、审计、业务上下文</td></tr>
+          </tbody>
+        </table>
+        <p>Filter 可直接短路请求，例如认证失败返回 401，此时 Controller 不会执行。</p>
+
+        <h3>8.4 参数如何生成</h3>
+        <table>
+          <thead><tr><th>参数注解/类型</th><th>数据来源</th></tr></thead>
+          <tbody>
+            <tr><td><code>@RequestParam</code></td><td>查询参数或表单</td></tr>
+            <tr><td><code>@PathVariable</code></td><td>路径变量</td></tr>
+            <tr><td><code>@RequestHeader</code></td><td>请求头</td></tr>
+            <tr><td><code>@RequestBody</code></td><td>请求体，常经 Jackson 反序列化</td></tr>
+            <tr><td><code>HttpServletRequest</code></td><td>原始请求对象</td></tr>
+          </tbody>
+        </table>
+        <pre><code class="language-text">Content-Type: application/json
+  -> 选择 JSON 消息转换器
+  -> Jackson 读取请求体
+  -> 构造 DTO
+  -> 作为方法参数传入</code></pre>
+        <p>若使用 <code>@Valid</code> 等校验注解，校验失败也可能发生在 Controller 业务代码之前。</p>
+
+        <h3>8.5 Controller 返回值如何变成 HTTP 响应</h3>
+        <p>Controller 返回的通常是 Java 对象，不是手写 JSON 字符串。<code>@RestController</code> 表示返回值写入响应体；返回值处理器选择合适的 <code>HttpMessageConverter</code>，常由 Jackson 序列化为 JSON。</p>
+        <pre><code class="language-text">Controller 返回对象
+  -> 返回值处理
+  -> HttpMessageConverter
+  -> 写入响应体
+  -> Filter 返回阶段
+  -> Web 服务器发送响应
+
+异常路径：
+Service/Controller 抛异常
+  -> 若未被局部捕获
+  -> DispatcherServlet
+  -> 异常解析器 / @ControllerAdvice
+  -> 统一错误响应</code></pre>
+
+        <h3>8.6 分层架构中的 Spring 用法</h3>
+        <pre><code class="language-text">Controller（协议适配）
+  -> Service / Handler（业务编排）
+  -> Mapper / Repository / Feign（数据与外部调用）
+  -> 数据库 / 外部服务
+  -> 返回业务结果
+  -> Controller 包装响应</code></pre>
+        <p>Controller 直接访问数据库或堆砌复杂计算，会破坏分层，增加测试和演进成本。双持久层也很常见：MyBatis / MyBatis-Plus 适合关系库、复杂 SQL、报表查询；Spring Data MongoDB / <code>MongoTemplate</code> 适合文档型数据、灵活结构、条件更新。</p>
+
+        <h3>8.7 Feign、任务调度与事务在 Spring 中的位置</h3>
+        <ul>
+          <li><strong>Feign</strong>：把 Java 接口变成 HTTP 客户端代理；接口上声明服务名、路径、方法后，调用接口方法即发起远程 HTTP 请求。只写服务名、不写固定 URL 时，通常依赖服务发现找到实例。</li>
+          <li><strong>任务调度</strong>：Spring 自带 <code>@Scheduled</code>，企业系统也常用 XXL-JOB 等外部调度平台。使用外部调度时，任务方法仍是 Spring Bean，但 Cron 往往在调度中心配置。"任务代码已实现"不等于"线上已在跑"：还需要进程在线、执行器注册、调度中心配置、依赖数据源可用。</li>
+          <li><strong>事务</strong>：Spring 可提供事务管理器与 <code>@Transactional</code> 代理；框架能提供"如何做事务"，但不能替你决定"哪些操作必须原子执行"；数据库部署是否支持事务，会直接影响多文档/多语句事务能否真正成立。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">9. 贯穿示例</h2>
+        <p>以"查询某月订单均价"这类只读接口为例，把约定、启动和请求串起来。</p>
+
+        <h3>9.1 代码约定</h3>
+        <pre><code class="language-java">@SpringBootApplication
+@MapperScan("com.example.order.mapper")
+public class App {
+    public static void main(String[] args) {
+        SpringApplication.run(App.class, args);
+    }
+}
+
+@RestController
+@RequestMapping("/api/orders")
+public class OrderController {
+
+    private final OrderService orderService;
+
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
+    }
+
+    @PostMapping("/avg-price")
+    public ApiResult&lt;List&lt;AvgPriceVO&gt;&gt; query(
+            @RequestBody AvgPriceQuery query) {
+        return ApiResult.ok(orderService.queryAvgPrice(query));
+    }
+}
+
+@Service
+public class OrderService {
+    private final OrderMapper orderMapper;
+
+    public OrderService(OrderMapper orderMapper) {
+        this.orderMapper = orderMapper;
+    }
+
+    public List&lt;AvgPriceVO&gt; queryAvgPrice(AvgPriceQuery query) {
+        // 校验月份格式，再查库
+        return orderMapper.selectAvgPrice(query);
+    }
+}</code></pre>
+        <p>这里遵守的约定：启动类开启自动配置与扫描；Controller/Service 使用标准注解；Mapper 通过 <code>@MapperScan</code> 成为代理 Bean；URL 与 HTTP 方法通过注解声明；依赖由容器注入。</p>
+
+        <h3>9.2 启动时发生了什么</h3>
+        <pre><code class="language-text">执行 main()
+  -> 读取 server.port=8080 等配置
+  -> 组件扫描注册 OrderController / OrderService
+  -> MapperScan 注册 OrderMapper 代理
+  -> 自动配置 Web 与数据访问基础设施
+  -> 实例化 Bean 并完成注入
+  -> 注册路由：POST /api/orders/avg-price -> OrderController.query
+  -> 内嵌服务器绑定 8080
+  -> 应用就绪</code></pre>
+
+        <h3>9.3 请求时发生了什么</h3>
+        <pre><code class="language-http">POST /api/orders/avg-price HTTP/1.1
+Content-Type: application/json
+
+{
+  "month": "2026-06"
+}</code></pre>
+        <pre><code class="language-text">Web 服务器接收并解析 HTTP
+  -> Filter 链
+  -> DispatcherServlet
+  -> 路由表命中 OrderController.query
+  -> JSON 反序列化为 AvgPriceQuery
+  -> 调用 Controller
+  -> Service 校验并查库
+  -> 返回 List&lt;AvgPriceVO&gt;
+  -> 包装为 ApiResult
+  -> 序列化为 JSON 响应</code></pre>
+        <p>若月份格式非法、Token 无效、路径写错，失败点分别可能在：Service 业务校验、Filter 认证、HandlerMapping 路由匹配。这说明<strong>问题定位要先判断失败发生在启动期、协议期还是业务期</strong>。</p>
+      </section>
+
+      <section aria-labelledby="confusion">
+        <h2 id="confusion">10. 易混概念速查</h2>
+        <table>
+          <thead><tr><th>概念 A</th><th>概念 B</th><th>核心区别</th><th>选择依据</th></tr></thead>
+          <tbody>
+            <tr><td>约定</td><td>配置</td><td>约定是默认规则，配置是显式覆盖或补充</td><td>稳定通用走约定，环境/歧义走配置</td></tr>
+            <tr><td>Maven 依赖声明</td><td>Spring Boot 自动配置</td><td>前者把 JAR 放进 classpath，后者决定创建哪些 Bean</td><td>先有依赖，再谈自动配置</td></tr>
+            <tr><td>自动配置</td><td>自动装配</td><td>创建基础设施 Bean vs 注入已有 Bean</td><td>看是"造出来"还是"塞进去"</td></tr>
+            <tr><td>自动配置</td><td>动态配置</td><td>启动期条件装配 vs 运行期属性刷新</td><td>改 Bean 结构还是改属性值</td></tr>
+            <tr><td>组件扫描</td><td>自动配置</td><td>业务组件来源 vs 基础设施来源</td><td>来源不同，后续生命周期相同</td></tr>
+            <tr><td>@ComponentScan</td><td>@MapperScan</td><td>普通组件 vs Mapper 代理</td><td>Mapper 接口要用专门扫描</td></tr>
+            <tr><td>BeanDefinition</td><td>Bean 实例</td><td>说明书 vs 真正对象</td><td>扫到不等于已创建</td></tr>
+            <tr><td>Spring Framework</td><td>Spring Boot</td><td>管对象 vs 快速自动装配成服务</td><td>解释能力归属时分开说</td></tr>
+            <tr><td>多模块</td><td>微服务</td><td>代码拆分 vs 进程/部署拆分</td><td>先看部署边界</td></tr>
+            <tr><td>Web 服务器</td><td>DispatcherServlet</td><td>管连接与 HTTP vs 管 MVC 分发</td><td>端口问题看服务器，路由问题看 MVC</td></tr>
+            <tr><td>Filter</td><td>Interceptor</td><td>Servlet 层 vs Spring MVC 层</td><td>容器级横切用 Filter，Handler 级用 Interceptor</td></tr>
+            <tr><td>启动阶段</td><td>请求阶段</td><td>一次准备 vs 反复复用</td><td>慢启动查装配，慢请求查业务与 IO</td></tr>
+            <tr><td>引入 Starter</td><td>真正使用能力</td><td>依赖存在不等于业务调用存在</td><td>以代码和配置使用证据为准</td></tr>
+            <tr><td>Undertow</td><td>全异步业务</td><td>服务器模型 vs 业务是否阻塞</td><td>有阻塞 IO 就仍占 Worker</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="misconceptions">
+        <h2 id="misconceptions">11. 常见误区与边界</h2>
+        <ol>
+          <li><strong>误区</strong>：Spring Boot Web 服务就是业务代码自己循环监听端口。<br><strong>正确</strong>：内嵌 Web 服务器绑定端口并等待操作系统网络事件；业务代码负责处理已被分发的请求。</li>
+          <li><strong>误区</strong>：请求到达 8080 后会立刻进入 Controller。<br><strong>正确</strong>：中间还有 Web 服务器、Filter、<code>DispatcherServlet</code>、路由匹配、参数解析、拦截器和校验。</li>
+          <li><strong>误区</strong>：约定优于配置等于完全不写配置。<br><strong>正确</strong>：只是把可推断的默认行为交给框架；环境值和关键业务决策仍需明确。</li>
+          <li><strong>误区</strong>：<code>pom</code> 里写了 Starter，所以这是 Maven 的约定大于配置。<br><strong>正确</strong>：Maven 负责引入依赖；是否自动变成可用能力，是 Spring Boot 自动配置的事。</li>
+          <li><strong>误区</strong>：启动类所在包以外的组件一定能被扫到。<br><strong>正确</strong>：默认只从启动类包向下扫描；放在扫描范围外时必须显式补充扫描路径。</li>
+          <li><strong>误区</strong>：<code>@ComponentScan</code> 可以替代 <code>@MapperScan</code>。<br><strong>正确</strong>：Mapper 是接口代理，需要 MyBatis 专用注册机制。</li>
+          <li><strong>误区</strong>：定义了服务名常量，服务就自动有了注册身份。<br><strong>正确</strong>：常量必须在启动时真正传给启动/注册逻辑后才生效。</li>
+          <li><strong>误区</strong>：Nacos 会把配置写进本地 <code>application.yml</code>。<br><strong>正确</strong>：远程配置进入运行时 <code>Environment</code>，通常不改本地文件。</li>
+          <li><strong>误区</strong>：自动装配就是自动配置，动态配置也是一回事。<br><strong>正确</strong>：自动配置造基础设施 Bean；自动装配做注入；动态配置改运行期属性。</li>
+          <li><strong>误区</strong>：扫描到了或导入了自动配置，对象就已经存在。<br><strong>正确</strong>：先有 <code>BeanDefinition</code>，再实例化；默认单例多在启动期创建，懒加载除外。</li>
+          <li><strong>误区</strong>：每次请求都会重新创建 Service、Mapper 和路由。<br><strong>正确</strong>：大多数单例 Bean 和路由表在启动期完成，请求期复用。</li>
+          <li><strong>误区</strong>：Maven 里有十个模块，就等于十个独立服务。<br><strong>正确</strong>：若都由一个 <code>start</code> 模块打包运行，它们仍是单进程应用。</li>
+          <li><strong>误区</strong>：父 POM 引入了 Redis 或 MQ，就说明项目在用缓存或消息。<br><strong>正确</strong>：要以是否存在业务调用、监听器、缓存注解等实际使用证据为准。</li>
+          <li><strong>误区</strong>：用了 Undertow，业务就天然非阻塞。<br><strong>正确</strong>：服务器可以事件驱动，但阻塞式业务代码仍会占住 Worker 线程。</li>
+          <li><strong>误区</strong>：加了 <code>@Transactional</code> 就一定具备真实原子性。<br><strong>正确</strong>：还取决于事务管理器、数据源/数据库是否支持，以及方法是否真正走到代理调用。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="project-example">
+        <h2 id="project-example">12. 项目示例：企业应用中的落地方式</h2>
+        <p class="scope-note"><strong>本示例仅作"当前实现示例"，不是通用标准。</strong>以下内容来自某屠宰运营相关工作区中两个后端工程及后续辅助讨论的观察。</p>
+
+        <h3>12.1 系统形态与启动方式</h3>
+        <ul>
+          <li>成本核算类服务：偏计算、持久化、定时任务；主数据/查询类服务：偏多数据源查询，并为其他服务提供 Feign 契约；前端工程不使用 Spring Boot。</li>
+          <li>两者后端都采用：Maven 多模块 → <code>start</code> 聚合 → 单一可执行 JAR → Spring 容器统一管理 Controller/Service/DAL/Job。</li>
+          <li>一类启动类显式使用 <code>@SpringBootApplication</code>、<code>@EnableFeignClients</code>、<code>@MapperScan</code> 和额外 <code>@ComponentScan</code>；另一类使用企业平台封装注解和启动器，公共能力更多来自内部 Starter。</li>
+          <li>本地启动：IDE 直接运行 <code>start</code> 模块主类，或 <code>mvn clean package -DskipTests</code> 后运行可执行 JAR，同时用启动参数提供 Nacos 地址、namespace、<code>spring.profiles.active</code> 等。</li>
+        </ul>
+
+        <h3>12.2 配置特征与约定的正反例</h3>
+        <p>本地 <code>application.yml</code> 常见内容包括：服务端口与 Undertow 线程参数、MyBatis-Plus 映射与逻辑删除、Swagger 信息、允许循环依赖/允许 Bean 覆盖等兼容开关。环境差异文件可能为空，数据源等值使用占位符——"仓库可编译"与"本地可启动"不是一回事。</p>
+        <p><strong>正面</strong>：启动类、标准注解、Starter 依赖共同减少手工装配。<strong>反面</strong>：部分代码位于顶层 <code>controller</code> / <code>service</code> 包，不在启动类默认扫描树下，因此必须显式补充 <code>@ComponentScan</code>。这正是：<code>守约 -> 少配；破约 -> 补配</code>。</p>
+
+        <h3>12.3 请求与协作（当前实现观察）</h3>
+        <pre><code class="language-text">只读查询链：Feign 契约 -> Controller -> Service -> Mapper + 动态数据源 -> XML SQL -> 统一响应对象
+
+复杂计算链：XXL-JOB 或临时 HTTP 入口 -> Job/Controller -> Handler -> Mongo 日数据 + Feign 外部数据 + MyBatis 主数据 -> 计算结果 -> Mongo 条件写入</code></pre>
+        <p><strong>可迁移经验</strong>：查询服务适合"Controller + Service + XML SQL"；复杂批处理把编排逻辑放到 Handler 而不是 Controller；跨服务协作时 Feign 契约与 Controller 路径保持一致；自动覆盖写入常需配合状态机或 CAS 条件，避免覆盖人工结果；任务代码完成不等于调度已上线。</p>
+
+        <h3>12.4 已知限制</h3>
+        <table>
+          <thead><tr><th>类型</th><th>示例事实</th><th>影响</th></tr></thead>
+          <tbody>
+            <tr><td>包结构偏离约定</td><td>部分代码位于顶层 <code>controller</code>/<code>service</code> 包</td><td>必须额外配置扫描路径</td></tr>
+            <tr><td>环境配置外置</td><td>本地 profile 基本为空</td><td>缺外部配置时难以启动</td></tr>
+            <tr><td>平台封装启动</td><td>真实 Nacos 引导细节在外部依赖</td><td>不能只靠业务仓库断言全部引导逻辑</td></tr>
+            <tr><td>能力预装但未使用</td><td>依赖中有缓存/消息相关 Starter</td><td>不能据此判断业务已使用</td></tr>
+            <tr><td>事务依赖部署</td><td>Mongo 多文档事务需要集群支持</td><td>单机环境可能只有注解、没有真实原子性</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="cheatsheet">
+        <h2 id="cheatsheet">13. 速查表</h2>
+        <table>
+          <thead><tr><th>想完成的目标</th><th>使用的概念或操作</th><th>关键条件</th></tr></thead>
+          <tbody>
+            <tr><td>少写装配代码</td><td>约定、Starter、组件扫描</td><td>包结构与注解符合默认规则</td></tr>
+            <tr><td>解释 pom 里的 Starter</td><td>Maven 引入 + Boot 自动配置</td><td>分清构建期与运行期</td></tr>
+            <tr><td>覆盖默认行为</td><td>显式配置、自定义 Bean、注解覆盖</td><td>只覆盖真正偏离默认的点</td></tr>
+            <tr><td>区分三个"自动"</td><td>自动配置 / 自动装配 / 动态配置</td><td>分别对应造 Bean、注入、改属性</td></tr>
+            <tr><td>注册 Mapper</td><td><code>@MapperScan</code> 或等价机制</td><td>不要只靠普通组件扫描</td></tr>
+            <tr><td>理解服务名</td><td>启动时传入的运行时身份</td><td>常量 alone 无效</td></tr>
+            <tr><td>理解服务为何能监听端口</td><td>内嵌 Web 服务器 + <code>server.port</code></td><td>Web 依赖存在且容器创建成功</td></tr>
+            <tr><td>理解请求如何进业务</td><td>Filter → DispatcherServlet → Controller</td><td>路由匹配且前置检查通过</td></tr>
+            <tr><td>排查 404/405</td><td>路由表与映射注解</td><td>区分路径错误和方法错误</td></tr>
+            <tr><td>排查参数绑定失败</td><td>HttpMessageConverter / 参数解析器</td><td>JSON 结构、Content-Type、字段名</td></tr>
+            <tr><td>排查启动失败</td><td>Environment、自动配置、Bean 创建</td><td>先看缺配置还是缺 Bean/循环依赖</td></tr>
+            <tr><td>拆分代码但单进程部署</td><td>多模块 + start 聚合打包</td><td>不要误当成多服务</td></tr>
+            <tr><td>调用其他服务</td><td>Feign 客户端代理</td><td>服务名、路径、注册发现或 URL</td></tr>
+            <tr><td>保证一组写操作原子</td><td>@Transactional + 合适事务管理器</td><td>存储与部署必须真正支持事务</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">14. 记忆主线</h2>
+        <pre><code class="language-text">Maven 把依赖装进包
+  -> Spring Boot 按约定与条件自动配置
+  -> 注册 BeanDefinition 并创建 Bean
+  -> 启动内嵌服务器、建立路由
+  -> 绑定端口进入就绪
+  -> 请求经服务器与 DispatcherServlet 分发
+  -> Controller 调用业务并返回响应</code></pre>
+        <ol>
+          <li><strong>约定优于配置</strong>解决的是"稳定默认值由框架承担"，不是取消所有配置。</li>
+          <li><strong>Maven 负责装进来，Boot 负责用起来</strong>；写在 <code>pom</code> 里不等于已经完成运行时装配。</li>
+          <li><strong>自动配置、自动装配、动态配置是三件事</strong>，不要混用。</li>
+          <li><strong>启动阶段做准备，请求阶段做复用</strong>：Bean、路由、连接池通常启动时建好。</li>
+          <li><strong>端口监听者是 Web 服务器，业务入口是 Controller</strong>，中间必经 MVC 分发链。</li>
+          <li><strong>多模块是代码组织方式</strong>；是否微服务要看进程与部署边界。</li>
+          <li><strong>依赖存在、注解存在、能力真实生效</strong>是三件不同的事，排查时要分开看。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="quiz">
+        <h2 id="quiz">15. 自测问题</h2>
+        <ol>
+          <li>为什么把 <code>@Service</code> 类放到启动类根包的子包下，通常不用改启动配置；若放到完全无关的顶层包，又可能要补什么？</li>
+          <li>为什么 <code>pom</code> 里写了 <code>spring-boot-starter-data-mongodb</code>，仍可能启动失败或没有可用的 Mongo 能力？</li>
+          <li>为什么 Spring Boot 能根据 Starter 自动创建 <code>MongoTemplate</code> 或数据源基础设施，却不能自动知道生产数据库地址？</li>
+          <li><code>@ComponentScan</code> 和 <code>@MapperScan</code> 各解决什么问题？只保留前者通常会怎样？</li>
+          <li>自动配置、自动装配、动态配置分别改变系统的哪一部分？</li>
+          <li>"扫描到某个类"和"该 Bean 已经可以注入使用"之间还差哪一步？</li>
+          <li>一次 <code>POST /api/orders/avg-price</code> 请求，在进入 Controller 前最少会经过哪些环节？其中哪一步负责"找到哪个方法"？</li>
+          <li>启动成功后，为什么通常不需要在每次请求时重新扫描 Controller 注解？</li>
+          <li>如何判断一个工程是"多模块单服务"还是"多个独立微服务"？</li>
+          <li>服务名常量写在代码里，但启动时没有传给启动器，会出现什么现象？</li>
+          <li>父 POM 引入了消息或缓存 Starter，怎样证明业务真的在用它们？</li>
+          <li>使用 Undertow 是否意味着业务代码不会阻塞线程？为什么？</li>
+          <li>Filter 返回 401 与 Controller 抛业务异常，失败点分别在请求链的什么位置？</li>
+        </ol>
+        <details>
+          <summary>参考答案</summary>
+          <ol>
+            <li>启动类根包子包在默认扫描范围内，无需配置；顶层无关包需显式补充 <code>@ComponentScan</code> 扫描路径。</li>
+            <li>自动配置是条件装配：缺少连接信息（URL/账号）、用户已自定义同名 Bean、条件不满足时不会创建；Mongo 能力也未真正被代码使用。</li>
+            <li>Starter 触发"是否创建基础设施 Bean"的条件判断；数据库地址是环境相关的值，框架按约定无法推断，必须显式配置。</li>
+            <li>前者扫描普通组件类，后者把 Mapper 接口注册为 MyBatis 代理 Bean；只留前者时 Mapper 接口无法注入。</li>
+            <li>自动配置改变"创建哪些基础设施 Bean"；自动装配改变"Bean 之间的引用关系"；动态配置改变"Environment 中的属性值"。</li>
+            <li>还差实例化阶段：注册 <code>BeanDefinition</code> 后，需创建实例、填充依赖、初始化回调后才可注入使用。</li>
+            <li>Web 服务器 → Filter 链 → DispatcherServlet → HandlerMapping（负责"找到哪个方法"）→ 拦截器 → HandlerAdapter 参数解析/校验 → Controller。</li>
+            <li>路由表在启动阶段由扫描 Controller 注解建立并缓存，请求期直接查表，无需重复扫描。</li>
+            <li>看部署边界：若所有模块由同一个 <code>start</code> 打包成单个可执行 JAR 运行在一个 JVM，就是多模块单服务；多个独立进程/部署单元才是微服务。</li>
+            <li>服务没有注册身份：无法被其他服务按名发现，配置定位与日志标识也缺失，但编译和本地启动可能完全正常。</li>
+            <li>以实际使用证据为准：代码中是否有缓存注解/调用、MQ 监听器/生产者、以及相关配置；仅有依赖不算使用。</li>
+            <li>不是。Undertow 是事件驱动服务器，但阻塞 JDBC、同步 Feign 等业务代码仍会占用 Worker 线程直到结束。</li>
+            <li>Filter 401 发生在 Servlet 层（DispatcherServlet 之前），请求被短路；Controller 异常发生在 MVC 分发链内部，由异常解析器/<code>@ControllerAdvice</code> 统一处理。</li>
+          </ol>
+        </details>
+      </section>
+
+      <section aria-labelledby="evidence">
+        <h2 id="evidence">16. 证据与时效边界</h2>
+        <ul>
+          <li>本文通用部分总结自 Spring Boot / Spring MVC 的常见机制，以及本会话与指定辅助对话中已确认的解释与纠正。</li>
+          <li>辅助对话补充重点包括：Maven 与 Boot 边界、<code>@ComponentScan</code>/<code>@MapperScan</code>、服务名与 Nacos/<code>Environment</code>、自动配置元数据位置、BeanDefinition 与实例化两阶段、三个"自动"三分、Undertow 与阻塞业务的关系、Spring 与 Spring Boot 分工。</li>
+          <li>"项目示例"部分基于对本地工作区后端工程及辅助讨论的观察，反映当时可见实现，不保证与后续分支或未纳入仓库的平台内部实现完全一致。</li>
+          <li>企业平台启动器、Nacos Data ID 规则、生产部署拓扑等未在本地完整展开的部分，已按机制层表述，不把未核验细节写成确定事实。</li>
+          <li>不收录任何密钥、口令或可直接用于未授权访问的敏感配置值。</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '14px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis', nodeSpacing: 18, rankSpacing: 28 }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active;
+      if (atBottom) {
+        active = headings[headings.length - 1];
+      } else {
+        active = headings[0];
+        headings.forEach(function (heading) {
+          if (heading.offsetTop <= marker) active = heading;
+        });
+      }
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>

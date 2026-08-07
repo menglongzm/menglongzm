@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java 异常机制学习梳理</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script>
+    function mermaidTheme() {
+      return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default';
+    }
+    function renderMermaid() {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: mermaidTheme(),
+        flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+        sequence: { useMaxWidth: true, actorMargin: 50 },
+        er: { useMaxWidth: true },
+        securityLevel: 'loose'
+      });
+      document.querySelectorAll('.mermaid').forEach(function(el) {
+        el.removeAttribute('data-processed');
+        if (el.dataset.src) el.textContent = el.dataset.src;
+      });
+      mermaid.run({ querySelector: '.mermaid' }).then(function() {
+              document.querySelectorAll('.mermaid[data-fit="scroll"] svg').forEach(function(svg) {
+                var vb = svg.viewBox.baseVal;
+                if (vb && vb.width > 0) {
+                  svg.style.setProperty('width', vb.width + 'px', 'important');
+                  svg.style.setProperty('max-width', 'none', 'important');
+                }
+              });
+            });
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.mermaid').forEach(function(el) { el.dataset.src = el.textContent; });
+      renderMermaid();
+    });
+    function toggleTheme() {
+      var html = document.documentElement;
+      var isDark = html.dataset.theme === 'dark';
+      html.dataset.theme = isDark ? 'light' : 'dark';
+      document.querySelector('.theme-toggle').textContent = isDark ? '🌙' : '☀️';
+      var nowDark = !isDark;
+      document.getElementById('prism-light').disabled = nowDark;
+      document.getElementById('prism-dark').disabled = !nowDark;
+      renderMermaid();
+    }
+    function initScrollSpy() {
+      var headings = document.querySelectorAll('.content h2[id], .content h3[id]');
+      var tocLinks = document.querySelectorAll('.toc a');
+      if (!headings.length || !tocLinks.length) return;
+      var observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            var id = entry.target.id;
+            tocLinks.forEach(function(link) {
+              if (link.getAttribute('href') === '#' + id) {
+                link.classList.add('toc-active');
+              } else {
+                link.classList.remove('toc-active');
+              }
+            });
+          }
+        });
+      }, { rootMargin: '-24px 0px -70% 0px' });
+      headings.forEach(function(h) { observer.observe(h); });
+    }
+    document.addEventListener('DOMContentLoaded', initScrollSpy);
+  </script>
+  <style>
+    :root {
+      --color-bg: #ffffff;
+      --color-surface: #f6f8fa;
+      --color-text: #24292e;
+      --color-text-muted: #6a737d;
+      --color-border: #d0d7de;
+      --color-border-light: #eee;
+    }
+    :root[data-theme="dark"] {
+      --color-bg: #0d1117;
+      --color-surface: #161b22;
+      --color-text: #c9d1d9;
+      --color-text-muted: #8b949e;
+      --color-border: #30363d;
+      --color-border-light: #21262d;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; padding: 0; line-height: 1.7; background: var(--color-bg); color: var(--color-text); transition: background 0.2s, color 0.2s; }
+    h1 { border-bottom: 2px solid var(--color-border-light); padding-bottom: 8px; margin-top: 0; }
+    h2 { margin-top: 32px; border-bottom: 1px solid var(--color-border-light); padding-bottom: 6px; }
+    h3 { margin-top: 24px; }
+    h4 { margin-top: 18px; }
+    code { background: var(--color-surface); padding: 2px 6px; border-radius: 4px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.9em; }
+    pre { background: var(--color-surface); padding: 16px; border-radius: 6px; overflow-x: auto; }
+    pre code { background: none; padding: 0; font-size: 0.85em; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid var(--color-border); padding: 8px 12px; text-align: left; }
+    th { background: var(--color-surface); font-weight: 600; }
+    table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; }
+    .mermaid { text-align: center; margin: 24px 0; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    #exception-match svg { max-width: min(620px, 100%) !important; display: block; margin: 0 auto; }
+    .mermaid[data-fit="scroll"]{overflow-x:auto;max-width:100%;}
+    .mermaid[data-fit="scroll"] svg{display:block;}
+    .diagram-caption { text-align: center; color: var(--color-text-muted); font-size: 0.9em; margin-top: -8px; margin-bottom: 24px; }
+    blockquote { border-left: 4px solid var(--color-border); padding-left: 16px; color: var(--color-text-muted); margin: 16px 0; }
+    .sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; overflow-y: auto; padding: 24px 20px; background: var(--color-surface); border-right: 1px solid var(--color-border); z-index: 100; }
+    .toc ul { margin: 8px 0; padding-left: 16px; list-style: none; }
+    .toc li { margin: 4px 0; }
+    .toc a { color: var(--color-text-muted); text-decoration: none; font-size: 0.9em; display: block; padding: 2px 0; border-left: 3px solid transparent; padding-left: 8px; margin-left: -11px; transition: color 0.2s, border-color 0.2s; }
+    .toc a:hover { color: var(--color-text); }
+    .toc a.toc-active { color: var(--color-text); font-weight: 600; border-left-color: var(--color-text); }
+    .content { margin-left: 240px; padding: 24px 32px; max-width: 860px; min-height: 100vh; }
+    @media (max-width: 768px) {
+      .sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--color-border); }
+      .content { margin-left: 0; padding: 24px; }
+    }
+    .theme-toggle { position: fixed; top: 1rem; right: 1rem; z-index: 1000; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 0.4rem 0.6rem; cursor: pointer; color: var(--color-text); font-size: 1.1rem; }
+    .theme-toggle:hover { border-color: var(--color-text-muted); }
+    .theme-toggle:focus-visible { outline: 2px solid var(--color-text-muted); outline-offset: 2px; }
+    .mistake { background: var(--color-surface); border-left: 4px solid var(--color-border); padding: 12px 16px; margin: 12px 0; border-radius: 0 6px 6px 0; }
+    .mistake strong { color: var(--color-text); }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" aria-label="切换主题" onclick="toggleTheme()">🌙</button>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc">
+        <strong>目录</strong>
+        <ul>
+          <li><a href="#section-1">1. 一句话定位</a></li>
+          <li><a href="#section-2">2. 整体地图</a></li>
+          <li><a href="#section-3">3. 必要前置知识</a></li>
+          <li><a href="#section-4">4. 核心知识</a>
+            <ul>
+              <li><a href="#section-4-1">4.1 异常体系与分类</a></li>
+              <li><a href="#section-4-2">4.2 异常的本质</a></li>
+              <li><a href="#section-4-3">4.3 异常传播与 try-catch</a></li>
+              <li><a href="#section-4-4">4.4 五个关键字</a></li>
+              <li><a href="#section-4-5">4.5 自定义异常</a></li>
+              <li><a href="#section-4-6">4.6 Spring Boot 统一异常处理</a></li>
+            </ul>
+          </li>
+          <li><a href="#section-5">5. 贯穿示例</a></li>
+          <li><a href="#section-6">6. 易混概念</a></li>
+          <li><a href="#section-7">7. 常见误区与边界</a></li>
+          <li><a href="#section-8">8. 速查</a></li>
+          <li><a href="#section-9">9. 最终记忆主线</a></li>
+          <li><a href="#section-10">10. 自测问题</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="content">
+      <h1>Java 异常机制学习梳理</h1>
+      <blockquote>本文整理 Java 异常体系、自定义异常和 Spring Boot 统一异常处理的核心概念，适合有一定 Java 基础、想系统理解异常机制如何工作的读者。</blockquote>
+
+      <h2 id="section-1">1. 一句话定位</h2>
+      <p>Java 异常机制是一套<strong>带类型、会传播、能被分层接住的控制流机制</strong>，用于表达"程序进入了不该继续正常执行的状态"，并通过 try-catch 让程序在异常发生时转入备胎路径继续运行，而不是直接崩溃。</p>
+
+      <h2 id="section-2">2. 整体地图</h2>
+<pre><code class="language-text">异常产生（JVM 自动抛 / 手动 throw）
+  -> 当前方法立即中断
+  -> 沿调用栈向上传播
+  -> 被匹配类型的 catch 接住
+  -> 处理后继续执行 try-catch 之后的代码
+  -> 若无人接住，最终由 JVM 兜底（打印堆栈、终止线程）</code></pre>
+      <p>异常机制贯穿三个层面：</p>
+      <ul>
+        <li><strong>语言层</strong>：异常体系、throw/throws/try-catch 关键字</li>
+        <li><strong>设计层</strong>：自定义异常、异常分层、错误码</li>
+        <li><strong>框架层</strong>：Spring Boot 的 <code>@RestControllerAdvice</code> + <code>@ExceptionHandler</code> 统一异常处理</li>
+      </ul>
+
+      <h2 id="section-3">3. 必要前置知识</h2>
+      <ul>
+        <li>Java 方法调用栈的基本概念（方法 A 调用方法 B，B 执行完返回 A）</li>
+        <li>面向对象的继承关系（子类、父类）</li>
+      </ul>
+
+      <h2 id="section-4">4. 核心知识</h2>
+
+      <h3 id="section-4-1">4.1 异常体系与分类</h3>
+      <p>Java 所有异常的根类是 <code>Throwable</code>，它有两个分支。下图展示完整的继承层次，注意 RuntimeException 下属非受检异常，其他 Exception 子类属受检异常。</p>
+      <div class="mermaid" id="exception-hierarchy" data-fit="scroll">
+classDiagram
+    Throwable <|-- Error
+    Throwable <|-- Exception
+    Exception <|-- RuntimeException
+    Exception <|-- IOException
+    Exception <|-- SQLException
+    Exception <|-- ClassNotFoundException
+    RuntimeException <|-- NullPointerException
+    RuntimeException <|-- IllegalArgumentException
+    RuntimeException <|-- IndexOutOfBoundsException
+    RuntimeException <|-- ClassCastException
+    class Throwable {
+        +String message
+        +Throwable cause
+        +StackTraceElement[] stackTrace
+    }
+    class Error {
+        系统级错误 不catch
+    }
+    class Exception {
+        受检异常 Checked
+    }
+    class RuntimeException {
+        非受检 Unchecked
+    }
+      </div>
+      <p class="diagram-caption">图 1：Java 异常体系继承结构</p>
+      <p>图未展示：自定义业务异常通常继承 RuntimeException，属于非受检异常分支。</p>
+
+      <p>两种分类的区别：</p>
+      <table>
+        <thead><tr><th>类型</th><th>特点</th><th>何时用</th></tr></thead>
+        <tbody>
+          <tr><td>受检异常 Checked</td><td>编译器强制处理（try-catch 或 throws）</td><td>外部不可控的异常，如 IO、网络、数据库连接失败</td></tr>
+          <tr><td>非受检异常 Unchecked</td><td>编译器不强制处理</td><td>编程错误，如空指针、参数非法、业务逻辑错误</td></tr>
+        </tbody>
+      </table>
+<pre><code class="language-java">// 受检异常：必须处理，否则编译不过
+public void readFile() throws IOException { ... }
+
+// 非受检异常：可不处理
+public void checkId(Long id) {
+    if (id == null) throw new IllegalArgumentException("id 不能为空");
+}</code></pre>
+
+      <h3 id="section-4-2">4.2 异常的本质：控制流机制</h3>
+      <p>异常不只是"判断后抛一个信息"，而是一套控制流机制。它有三个关键特征：</p>
+      <ol>
+        <li><strong>带类型</strong>：异常是一个对象，有具体类型，catch 时按类型精确匹配分流</li>
+        <li><strong>会传播</strong>：throw 后当前方法立即中断，异常沿调用栈向上找 catch</li>
+        <li><strong>能被分层接住</strong>：可以在不同层级 catch，处理完继续执行后续代码</li>
+      </ol>
+      <p>异常对象携带的信息：</p>
+      <table>
+        <thead><tr><th>组成</th><th>作用</th></tr></thead>
+        <tbody>
+          <tr><td>类型（类名）</td><td>让 catch 方按类型精确接住</td></tr>
+          <tr><td>message</td><td>文字描述</td></tr>
+          <tr><td>cause</td><td>原始异常链（可选）</td></tr>
+          <tr><td>stack trace</td><td>堆栈轨迹，定位哪一行抛出</td></tr>
+        </tbody>
+      </table>
+      <p>异常的触发方式有两种：</p>
+<pre><code class="language-java">// 1. JVM 自动抛（不是你判断的）
+String s = null;
+s.length();   // 抛 NullPointerException
+int[] arr = new int[3];
+arr[5];       // 抛 ArrayIndexOutOfBoundsException
+
+// 2. 手动 throw（判断条件后抛）
+if (user == null) {
+    throw new BizException("用户不存在");
+}</code></pre>
+
+      <h3 id="section-4-3">4.3 异常传播与 try-catch 的作用</h3>
+      <p>throw 一旦发生，当前方法立即中断，异常沿调用栈向上传播，直到被某个 catch 接住。下图展示异常从方法 C 抛出后，如何沿调用栈向上传播，以及 try-catch 接住后两条路径合流继续执行。</p>
+      <div class="mermaid">
+flowchart TD
+    A["方法 C 中 throw 异常"] --> B{"方法 B 有 catch?"}
+    B -- 有 --> C["B 的 catch 接住"]
+    B -- 无 --> D{"方法 A 有 catch?"}
+    D -- 有 --> E["A 的 catch 接住"]
+    D -- 无 --> F["JVM 兜底: 打印堆栈, 终止线程"]
+    C --> G["继续执行 try-catch 之后的代码"]
+    E --> G
+      </div>
+      <p class="diagram-caption">图 2：异常传播与 try-catch 接住后的路径合流</p>
+      <p>图未展示：catch 块内部可以再 throw 新异常（换抛），此时新异常继续向上传播。</p>
+
+      <p>try-catch 的核心作用：<strong>异常发生时不让整个进程崩溃，而是转入另一条处理路径继续执行。</strong></p>
+<pre><code class="language-java">public void reviewCase(Long caseId) {
+    log.info("1. 开始复审");              // 执行
+
+    try {
+        log.info("2. 查案件");             // 执行
+        Case c = caseMapper.selectById(caseId);
+
+        if (c == null) {
+            throw new BizException("案件不存在");  // 抛出点
+        }
+
+        log.info("3. 案件存在，继续复审");  // 不执行！方法内中断
+        doReview(c);
+
+    } catch (BizException e) {
+        log.warn("4. 接住异常：{}", e.getMessage());  // 走这条"异常路径"
+    }
+
+    log.info("5. try-catch 之后，继续往下走");  // 执行！进程没崩
+}</code></pre>
+      <p>执行轨迹：<code>1 → 2 → 抛出 → 4 → 5</code></p>
+      <p>两条路径在 try-catch 之后"合流"，继续往下执行。</p>
+      <p>如果异常一直没人 catch，最终冒到 JVM 顶层，当前线程终止（如果是 main 线程，整个程序退出）。</p>
+
+      <h3 id="section-4-4">4.4 五个关键字</h3>
+
+      <h4>throw —— 主动抛出</h4>
+<pre><code class="language-java">if (user == null) {
+    throw new IllegalArgumentException("用户不存在");
+}</code></pre>
+
+      <h4>throws —— 声明抛出（方法签名上）</h4>
+<pre><code class="language-java">public User findById(Long id) throws UserNotFoundException {
+    ...
+}</code></pre>
+
+      <h4>try-catch-finally</h4>
+<pre><code class="language-java">FileInputStream fis = null;
+try {
+    fis = new FileInputStream("a.txt");
+    // 读数据
+} catch (FileNotFoundException e) {
+    log.error("文件找不到", e);
+} catch (IOException e) {
+    log.error("读取失败", e);
+} finally {
+    // 无论是否异常都会执行（用于释放资源）
+    if (fis != null) {
+        try { fis.close(); } catch (IOException ignored) {}
+    }
+}</code></pre>
+      <p>JDK 7+ 多异常合并：</p>
+<pre><code class="language-java">} catch (IOException | SQLException e) {
+    log.error("失败", e);
+}</code></pre>
+
+      <h4>try-with-resources（Java 7+，推荐）</h4>
+      <p>实现了 <code>AutoCloseable</code> 的资源会自动关闭，比 finally 更简洁安全：</p>
+<pre><code class="language-java">try (FileInputStream fis = new FileInputStream("a.txt");
+     BufferedReader br = new BufferedReader(new InputStreamReader(fis))) {
+    String line = br.readLine();
+} catch (IOException e) {
+    log.error("读取失败", e);
+}
+// fis 和 br 自动 close，无需 finally</code></pre>
+
+      <h3 id="section-4-5">4.5 自定义异常</h3>
+
+      <h4>为什么需要自定义异常</h4>
+      <p>JDK 自带的异常只能表达"技术性错误"，表达不了业务语义。自定义异常的好处：</p>
+      <ol>
+        <li><strong>按类型精确 catch</strong>——不同业务错误走不同处理路径</li>
+        <li><strong>携带业务错误码</strong>——前端能根据 code 做不同提示</li>
+        <li><strong>代码自解释</strong>——<code>throw new UserNotFoundException(id)</code> 一眼看出含义</li>
+        <li><strong>统一异常处理器</strong>能按类型分流处理</li>
+      </ol>
+
+      <h4>继承谁</h4>
+      <p>业务异常推荐继承 <code>RuntimeException</code>（非受检异常），原因：</p>
+      <ul>
+        <li>不强制调用方 try-catch 或 throws，避免污染调用链</li>
+        <li>Spring 的 <code>@Transactional</code> 默认只回滚 <code>RuntimeException</code></li>
+      </ul>
+
+      <h4>完整示例</h4>
+<pre><code class="language-java">// 1. 基础业务异常
+public class BizException extends RuntimeException {
+    private final int code;
+    private final String message;
+
+    public BizException(int code, String message) {
+        super(message);              // 必须传给父类，否则堆栈里看不到消息
+        this.code = code;
+        this.message = message;
+    }
+
+    // 带原始异常链的构造器
+    public BizException(int code, String message, Throwable cause) {
+        super(message, cause);       // 把 cause 传给父类
+        this.code = code;
+        this.message = message;
+    }
+
+    public int getCode() { return code; }
+    @Override
+    public String getMessage() { return message; }
+}
+
+// 2. 具体业务异常（继承基础异常）
+public class UserNotFoundException extends BizException {
+    public UserNotFoundException(Long id) {
+        super(40401, "用户不存在, id=" + id);   // 带上下文
+    }
+}
+
+public class InsufficientBalanceException extends BizException {
+    public InsufficientBalanceException(long current, long need) {
+        super(40902, "余额不足: 当前=" + current + ", 需要=" + need);
+    }
+}</code></pre>
+
+      <h4>关键点</h4>
+      <p><strong>构造器调用 <code>super(message)</code></strong>：不调的话 <code>e.getMessage()</code> 会返回 null（父类 Throwable 的 message 默认是 null）。</p>
+      <p><strong>异常对象携带上下文</strong>：异常消息里带上具体数值，比单纯抛"余额不足"有用得多。</p>
+      <p><strong>catch 顺序：子类在前，父类在后</strong>：</p>
+<pre><code class="language-java">try { ... }
+catch (UserNotFoundException e) { ... }   // 子类先
+catch (BizException e) { ... }            // 父类兜底</code></pre>
+      <p>反过来的话编译报错——父类先接住，子类分支永远走不到。</p>
+      <p><strong>保留原始异常链</strong>：catch 后想换一种异常抛出时，要把原异常传进去：</p>
+<pre><code class="language-java">try {
+    userMapper.selectById(id);
+} catch (SQLException e) {
+    throw new BizException(50001, "查询用户失败", e);  // 保留原始异常
+}</code></pre>
+
+      <h4>三种变体</h4>
+      <table>
+        <thead><tr><th>变体</th><th>适用场景</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td>最简版（只要 message）</td><td>小项目，不需要错误码</td><td><code>new BizException("用户不存在")</code></td></tr>
+          <tr><td>带错误码（推荐）</td><td>一般项目，前端根据 code 显示不同提示</td><td><code>new BizException(40401, "用户不存在")</code></td></tr>
+          <tr><td>枚举错误码</td><td>大型项目，错误码集中管理</td><td><code>new BizException(BizCode.USER_NOT_FOUND)</code></td></tr>
+        </tbody>
+      </table>
+      <p>枚举错误码示例：</p>
+<pre><code class="language-java">public enum BizCode {
+    USER_NOT_FOUND(40401, "用户不存在"),
+    INSUFFICIENT_BALANCE(40902, "余额不足");
+
+    private final int code;
+    private final String message;
+    // 构造器、getter...
+}
+
+// 用法
+throw new BizException(BizCode.USER_NOT_FOUND);</code></pre>
+
+      <h3 id="section-4-6">4.6 Spring Boot 统一异常处理</h3>
+
+      <h4>解决的问题</h4>
+      <p>没有全局处理器时，每个 Controller 方法都要写一堆重复的 try-catch：</p>
+<pre><code class="language-java">@PostMapping("/cases")
+public R&lt;Long&gt; createCase(@Valid @RequestBody CaseCreateDTO dto) {
+    try {
+        Long id = caseService.create(dto);
+        return R.ok(id);
+    } catch (CaseAlreadyReviewedException e) {
+        return R.fail(40901, e.getMessage());
+    } catch (UserNotFoundException e) {
+        return R.fail(40401, e.getMessage());
+    } catch (Exception e) {
+        return R.fail(500, "服务器错误");
+    }
+    // 每个 Controller 方法都要重复这一坨
+}</code></pre>
+      <p>有了全局处理器后，Controller 干净：</p>
+<pre><code class="language-java">@PostMapping("/cases")
+public R&lt;Long&gt; createCase(@Valid @RequestBody CaseCreateDTO dto) {
+    Long id = caseService.create(dto);   // 抛异常也无所谓
+    return R.ok(id);
+}</code></pre>
+
+      <h4>底层机制：Spring MVC 异常解析链</h4>
+      <p>Spring MVC 的核心控制器 <code>DispatcherServlet</code> 在调用 Controller 方法时，外层包了一个 try-catch：</p>
+<pre><code class="language-java">// DispatcherServlet 源码（简化版）
+protected void doDispatch(HttpServletRequest req, HttpServletResponse resp) {
+    try {
+        ModelAndView mv = handlerAdapter.handle(req, resp, handler);
+        // 如果 Controller 或 Service 抛异常，会从这里冒出来
+    } catch (Exception e) {
+        ModelAndView mv = processHandlerException(req, resp, handler, e);
+        // 异常不会让请求崩掉，而是被转交给解析器
+    }
+}</code></pre>
+      <p><code>processHandlerException</code> 按顺序调用一组 <code>HandlerExceptionResolver</code>。下图展示异常被 DispatcherServlet 接住后，依次询问三个解析器的流程：</p>
+      <div class="mermaid" id="resolver-flow" data-fit="scroll">
+flowchart TD
+    A["异常抛出"] --> B["DispatcherServlet 的 try-catch 接住"]
+    B --> C["processHandlerException"]
+    C --> D["1. ExceptionHandlerExceptionResolver"]
+    C --> E["2. ResponseStatusExceptionResolver"]
+    C --> F["3. DefaultHandlerExceptionResolver"]
+    D --> G{"找到 @ExceptionHandler?"}
+    G -- 是 --> H["调用处理方法, 返回响应"]
+    G -- 否 --> E
+    E --> I{"找到 @ResponseStatus?"}
+    I -- 是 --> J["按状态码返回"]
+    I -- 否 --> F
+    F --> K["Spring 默认处理 405/415 等"]
+      </div>
+      <p class="diagram-caption">图 3：Spring MVC 异常解析链</p>
+      <p>图未展示：@ExceptionHandler 走的是第 1 个解析器，是业务项目最常用的路径。</p>
+
+      <h4>@ExceptionHandler 的匹配过程</h4>
+      <p>当异常冒到 <code>ExceptionHandlerExceptionResolver</code>，它会：</p>
+      <ol>
+        <li>先在当前 Controller 类里找 <code>@ExceptionHandler</code> 方法</li>
+        <li>再在所有 <code>@ControllerAdvice</code> / <code>@RestControllerAdvice</code> Bean 里找</li>
+        <li>按异常类型匹配，<strong>子类优先（最精确的优先）</strong></li>
+        <li>找到就调用，找不到就用 Spring 默认处理</li>
+      </ol>
+      <p>下图展示抛出 <code>UserNotFoundException</code> 后，按类型从精确到宽泛逐级查找的决策过程：</p>
+      <div class="mermaid" id="exception-match">
+flowchart TD
+    A["抛出 UserNotFoundException"] --> B{"查找 @ExceptionHandler(UserNotFoundException.class)"}
+    B -- 找到 --> C["用它"]
+    B -- 没找到 --> D{"查找 @ExceptionHandler(BizException.class) 父类"}
+    D -- 找到 --> E["用它"]
+    D -- 没找到 --> F{"查找 @ExceptionHandler(Exception.class) 兜底"}
+    F -- 找到 --> G["用它"]
+    F -- 没找到 --> H["Spring 默认处理"]
+      </div>
+      <p class="diagram-caption">图 4：@ExceptionHandler 按异常类型逐级匹配</p>
+      <p>图未展示：匹配时同时考虑 Controller 内的 @ExceptionHandler 和 @RestControllerAdvice 里的，Controller 内的优先。</p>
+
+      <h4>完整调用链</h4>
+      <p>下图展示一次完整的 HTTP 请求中，异常从 Service 层抛出、经 Controller 传播、被 DispatcherServlet 接住、最终由 GlobalExceptionHandler 处理并返回 JSON 响应的完整时序：</p>
+      <div class="mermaid" id="exception-sequence" data-fit="scroll">
+sequenceDiagram
+    participant F as 前端
+    participant DS as DispatcherServlet
+    participant C as CaseController
+    participant S as CaseService
+    participant M as CaseMapper
+    participant GEH as GlobalExceptionHandler
+    F->>DS: POST /cases
+    DS->>C: createCase(dto)
+    C->>S: create(dto)
+    S->>M: insert(...)
+    M-->>S: 抛出 BizException!
+    S-->>C: 异常传播(未catch)
+    C-->>DS: 异常传播(未catch)
+    DS->>GEH: @ExceptionHandler(BizException) 匹配
+    GEH-->>DS: R.fail(40401, msg)
+    DS-->>F: 200 OK + JSON
+      </div>
+      <p class="diagram-caption">图 5：异常从抛出到返回响应的完整调用链</p>
+      <p>图未展示：参数校验异常（MethodArgumentNotValidException）走同一路径，只是匹配的 @ExceptionHandler 不同。</p>
+
+      <h4>完整代码示例</h4>
+      <p>统一响应包装：</p>
+<pre><code class="language-java">@Data
+public class R&lt;T&gt; {
+    private int code;
+    private String msg;
+    private T data;
+
+    public static &lt;T&gt; R&lt;T&gt; ok(T data) {
+        R&lt;T&gt; r = new R&lt;&gt;();
+        r.code = 200; r.msg = "success"; r.data = data;
+        return r;
+    }
+
+    public static &lt;T&gt; R&lt;T&gt; fail(int code, String msg) {
+        R&lt;T&gt; r = new R&lt;&gt;();
+        r.code = code; r.msg = msg; r.data = null;
+        return r;
+    }
+}</code></pre>
+      <p>全局异常处理器：</p>
+<pre><code class="language-java">@RestControllerAdvice   // = @ControllerAdvice + @ResponseBody
+@Slf4j
+public class GlobalExceptionHandler {
+
+    // 1. 业务异常
+    @ExceptionHandler(BizException.class)
+    public R&lt;Void&gt; handleBiz(BizException e) {
+        log.warn("业务异常 code={}, msg={}", e.getCode(), e.getMessage());
+        return R.fail(e.getCode(), e.getMessage());
+    }
+
+    // 2. 参数校验异常（@Valid 触发）
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public R&lt;Void&gt; handleValid(MethodArgumentNotValidException e) {
+        String msg = e.getBindingResult().getFieldErrors().stream()
+                .map(f -> f.getField() + ": " + f.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        return R.fail(400, msg);
+    }
+
+    // 3. 兜底：所有未捕获的异常
+    @ExceptionHandler(Exception.class)
+    public R&lt;Void&gt; handleAll(Exception e) {
+        log.error("未知异常", e);
+        return R.fail(500, "服务器内部错误");
+    }
+}</code></pre>
+      <p>Controller（清爽版）：</p>
+<pre><code class="language-java">@RestController
+@RequestMapping("/cases")
+public class CaseController {
+
+    @Autowired
+    private CaseService caseService;
+
+    @PostMapping
+    public R&lt;Long&gt; createCase(@Valid @RequestBody CaseCreateDTO dto) {
+        // 没有任何 try-catch！
+        Long id = caseService.create(dto);
+        return R.ok(id);
+    }
+}</code></pre>
+      <p>Service（正常抛异常就行）：</p>
+<pre><code class="language-java">@Service
+public class CaseService {
+
+    @Autowired
+    private CaseMapper caseMapper;
+
+    public Long create(CaseCreateDTO dto) {
+        Case exist = caseMapper.findByTitle(dto.getTitle());
+        if (exist != null) {
+            throw new BizException(40901, "案件标题已存在");  // 抛就完事
+        }
+        Case c = new Case();
+        c.setTitle(dto.getTitle());
+        caseMapper.insert(c);
+        return c.getId();
+    }
+}</code></pre>
+
+      <h4>关键细节</h4>
+      <p><strong><code>@RestControllerAdvice</code> = <code>@ControllerAdvice</code> + <code>@ResponseBody</code></strong>：</p>
+      <ul>
+        <li><code>@ControllerAdvice</code>：声明这是一个全局组件，能拦截所有 Controller 的异常</li>
+        <li><code>@ResponseBody</code>：返回值直接作为响应体（被 Jackson 序列化）</li>
+      </ul>
+      <p><strong>只能拦截 Controller 调用链上的异常</strong>：</p>
+<pre><code class="language-java">// 能拦截：Service 抛的异常冒到 Controller 再到 DispatcherServlet
+@PostMapping
+public R&lt;Void&gt; create() {
+    service.doSomething();  // 抛 BizException → 能被全局处理器接住
+}
+
+// 不能拦截：Filter / Interceptor 里的异常
+// 因为这些在 DispatcherServlet 之前执行，不走 @ExceptionHandler</code></pre>
+      <p>Filter 里的异常得用 Filter 自己的 <code>response.getWriter().write(...)</code> 返回，全局处理器接不住。</p>
+      <p><strong><code>@Valid</code> 的异常也是这么接住的</strong>：<code>@Valid</code> 校验失败时，Spring 抛 <code>MethodArgumentNotValidException</code>，同样冒到 DispatcherServlet 被全局处理器接住。</p>
+
+      <h2 id="section-5">5. 贯穿示例</h2>
+      <p>以"用户转账"为例，串起异常的产生、传播、自定义和统一处理：</p>
+<pre><code class="language-java">// === 定义异常 ===
+public class BizException extends RuntimeException {
+    private final int code;
+    public BizException(int code, String msg) { super(msg); this.code = code; }
+    public int getCode() { return code; }
+}
+
+public class UserNotFoundException extends BizException {
+    public UserNotFoundException(Long id) { super(40401, "用户不存在, id=" + id); }
+}
+
+public class InsufficientBalanceException extends BizException {
+    public InsufficientBalanceException(long cur, long need) {
+        super(40902, "余额不足: 当前=" + cur + ", 需要=" + need);
+    }
+}
+
+// === Service 层：抛异常 ===
+@Service
+public class TransferService {
+    public void transfer(Long fromId, Long toId, long amount) {
+        User from = findById(fromId);   // 可能抛 UserNotFoundException
+        User to = findById(toId);       // 可能抛 UserNotFoundException
+        if (from.getBalance() < amount) {
+            throw new InsufficientBalanceException(from.getBalance(), amount);
+        }
+        // 转账逻辑...
+    }
+
+    public User findById(Long id) {
+        User user = mockQuery(id);
+        if (user == null) throw new UserNotFoundException(id);
+        return user;
+    }
+
+    private User mockQuery(Long id) {
+        return id == 1L ? new User(1L, 1000) : null;
+    }
+}
+
+// === Controller 层：不写 try-catch ===
+@RestController
+public class TransferController {
+    @Autowired private TransferService service;
+
+    @PostMapping("/transfer")
+    public R&lt;Void&gt; transfer(@RequestBody TransferDTO dto) {
+        service.transfer(dto.getFrom(), dto.getTo(), dto.getAmount());
+        return R.ok(null);
+    }
+}
+
+// === 全局处理器：统一接住 ===
+@RestControllerAdvice
+@Slf4j
+public class GlobalExceptionHandler {
+    @ExceptionHandler(BizException.class)
+    public R&lt;Void&gt; handleBiz(BizException e) {
+        log.warn("业务异常: code={}, msg={}", e.getCode(), e.getMessage());
+        return R.fail(e.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public R&lt;Void&gt; handleAll(Exception e) {
+        log.error("未知异常", e);
+        return R.fail(500, "服务器内部错误");
+    }
+}</code></pre>
+      <p>调用 <code>POST /transfer</code> 传入 <code>from=1, to=999, amount=100</code> 时：</p>
+<pre><code class="language-text">TransferController.transfer()
+  └─ TransferService.transfer(1, 999, 100)
+       └─ findById(1)  → 成功，返回 User(1, 1000)
+       └─ findById(999) → 抛 UserNotFoundException
+            ↑ transfer 没 catch，继续向上传
+  ↑ Controller 没 catch，继续向上传
+  ↑ DispatcherServlet 接住
+  ↑ GlobalExceptionHandler.handleBiz() 匹配
+  ↑ 返回 R.fail(40401, "用户不存在, id=999")
+  ↑ 序列化为 JSON</code></pre>
+      <p>HTTP 响应：<code>{"code":40401,"msg":"用户不存在, id=999","data":null}</code></p>
+
+      <h2 id="section-6">6. 易混概念</h2>
+      <table>
+        <thead><tr><th>概念 A</th><th>概念 B</th><th>核心区别</th><th>选择依据</th></tr></thead>
+        <tbody>
+          <tr><td><code>throw</code></td><td><code>throws</code></td><td>throw 是语句，主动抛出异常对象；throws 是方法签名声明，告诉调用方可能抛出</td><td>throw 在方法体内用；throws 在方法参数列表后用</td></tr>
+          <tr><td>受检异常</td><td>非受检异常</td><td>编译器是否强制处理</td><td>外部不可控用受检；编程错误/业务错误用非受检</td></tr>
+          <tr><td><code>Error</code></td><td><code>Exception</code></td><td>Error 是系统级错误（OOM 等），不该 catch；Exception 是程序可处理的</td><td>业务代码只处理 Exception</td></tr>
+          <tr><td>异常</td><td>错误码返回值</td><td>异常会传播、强制处理；错误码可能被忽略</td><td>异常情况用异常；预期内的正常分支用返回值</td></tr>
+          <tr><td><code>try-with-resources</code></td><td><code>try-finally</code></td><td>前者自动关闭 AutoCloseable 资源；后者需手动关闭</td><td>有资源要关闭时优先用前者</td></tr>
+          <tr><td><code>@ControllerAdvice</code></td><td><code>@RestControllerAdvice</code></td><td>后者 = 前者 + @ResponseBody，返回值直接作为响应体</td><td>REST API 用后者</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="section-7">7. 常见误区与边界</h2>
+      <div class="mistake">
+        <p><strong>误区</strong>：异常就是"判断后抛一个信息"<br>
+        <strong>正确理解</strong>：异常是带类型、会传播、能被分层接住的控制流机制。"判断后抛"只是其中一种触发方式，JVM 也会自动抛。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：try-catch 让程序"不中断"<br>
+        <strong>正确理解</strong>：try-catch 让<strong>进程</strong>不崩溃，但<strong>当前方法会中断</strong>（throw 之后的代码不执行）。catch 处理完后，从 try-catch 块<strong>之后</strong>的代码继续执行。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：吞异常没关系<br>
+        <strong>正确理解</strong>：<code>catch (Exception e) {}</code> 是大忌，至少记日志。吞掉的异常会让问题无法定位。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：用异常控制流程<br>
+        <strong>正确理解</strong>：异常性能差且可读性差。预期内的分支（如查询为空）用返回值/Optional，不要用异常。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：catch 一把梭 <code>catch (Exception e)</code><br>
+        <strong>正确理解</strong>：把 NPE、IO、业务异常全混在一起，无法定位。应精确捕获具体类型。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：自定义异常继承 <code>Exception</code><br>
+        <strong>正确理解</strong>：业务异常应继承 <code>RuntimeException</code>，避免强制 throws 污染调用链，且 Spring 事务默认只回滚 RuntimeException。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>误区</strong>：全局异常处理器能拦截所有异常<br>
+        <strong>正确理解</strong>：<code>@ExceptionHandler</code> 只能拦截 Controller 调用链上的异常。Filter / Interceptor 里的异常在 DispatcherServlet 之前执行，接不住。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>边界</strong>：catch 顺序必须子类在前、父类在后，否则编译报错。</p>
+      </div>
+      <div class="mistake">
+        <p><strong>边界</strong>：换抛异常时要保留原始异常链（传 cause），否则堆栈丢失。</p>
+      </div>
+
+      <h2 id="section-8">8. 速查</h2>
+      <table>
+        <thead><tr><th>想完成的目标</th><th>使用的概念或操作</th><th>关键条件</th></tr></thead>
+        <tbody>
+          <tr><td>主动抛出业务异常</td><td><code>throw new BizException(code, msg)</code></td><td>继承 RuntimeException</td></tr>
+          <tr><td>声明方法可能抛异常</td><td><code>throws XxxException</code> 在方法签名</td><td>受检异常必须声明</td></tr>
+          <tr><td>自动关闭资源</td><td><code>try-with-resources</code></td><td>资源需实现 AutoCloseable</td></tr>
+          <tr><td>按类型分流处理异常</td><td>多个 catch 块，子类在前</td><td>父类兜底放最后</td></tr>
+          <tr><td>保留原始异常链</td><td><code>new BizException(code, msg, e)</code></td><td>e 作为 cause 传入</td></tr>
+          <tr><td>统一处理所有 Controller 异常</td><td><code>@RestControllerAdvice</code> + <code>@ExceptionHandler</code></td><td>只对 Controller 调用链有效</td></tr>
+          <tr><td>兜底未知异常</td><td><code>@ExceptionHandler(Exception.class)</code></td><td>放在处理器最后</td></tr>
+          <tr><td>参数校验异常处理</td><td><code>@ExceptionHandler(MethodArgumentNotValidException.class)</code></td><td>由 @Valid 触发</td></tr>
+          <tr><td>自定义异常携带错误码</td><td>在异常类里加 <code>int code</code> 字段</td><td>构造器调用 super(message)</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="section-9">9. 最终记忆主线</h2>
+<pre><code class="language-text">异常产生（throw / JVM 自动）
+  -> 当前方法中断，沿调用栈传播
+  -> try-catch 接住 → 走异常路径 → 之后继续执行
+  -> 无人接住 → JVM 兜底，线程终止
+
+自定义异常：继承 RuntimeException，带 code 和 message
+Spring Boot：@RestControllerAdvice + @ExceptionHandler 统一接住
+  ← 底层是 DispatcherServlet 的外层 try-catch + 异常解析器链
+  ← 只对 Controller 调用链有效，Filter/Interceptor 接不住</code></pre>
+      <h4>必记要点</h4>
+      <ol>
+        <li>异常 = 带类型、会传播、能被分层接住的控制流机制，不只是"抛信息"</li>
+        <li>try-catch 让进程不崩，但当前方法会中断；catch 后从 try-catch 块之后继续执行</li>
+        <li>业务异常继承 RuntimeException（非受检），不污染调用链，Spring 事务能回滚</li>
+        <li>自定义异常构造器必须调 super(message)，否则 getMessage() 返回 null</li>
+        <li>catch 顺序：子类在前，父类在后</li>
+        <li>换抛异常时保留 cause，避免堆栈丢失</li>
+        <li>@RestControllerAdvice + @ExceptionHandler 统一处理，Controller 不用写 try-catch</li>
+        <li>全局处理器底层靠 DispatcherServlet 的外层 try-catch，只对 Controller 调用链有效</li>
+      </ol>
+
+      <h2 id="section-10">10. 自测问题</h2>
+      <ol>
+        <li>抛出异常后，当前方法里 throw 之后的代码会执行吗？try-catch 块之后的代码会执行吗？</li>
+        <li>受检异常和非受检异常的区别是什么？业务异常应该继承哪个？为什么？</li>
+        <li>自定义异常的构造器如果不调用 <code>super(message)</code>，会有什么后果？</li>
+        <li>catch 块的顺序为什么必须子类在前、父类在后？</li>
+        <li>在 catch 里换抛另一种异常时，如何保留原始异常的堆栈信息？</li>
+        <li>Spring Boot 的 <code>@RestControllerAdvice</code> 为什么能让 Controller 不写 try-catch？底层机制是什么？</li>
+        <li><code>@ExceptionHandler</code> 的匹配过程是怎样的？如果同时有 <code>@ExceptionHandler(UserNotFoundException.class)</code> 和 <code>@ExceptionHandler(BizException.class)</code>，抛出 UserNotFoundException 会走哪个？</li>
+        <li>Filter 里抛出的异常能被 <code>@ExceptionHandler</code> 接住吗？为什么？如果不能，该怎么处理？</li>
+        <li><code>try-with-resources</code> 相比 <code>try-finally</code> 有什么优势？它要求资源实现什么接口？</li>
+        <li>以下代码有什么问题？<code>try { ... } catch (Exception e) { }</code></li>
+      </ol>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+  <script>
+    Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+  </script>
+</body>
+</html>

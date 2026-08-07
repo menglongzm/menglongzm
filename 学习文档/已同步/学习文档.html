@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>学习文档：Git 工作流与合并冲突复盘</title>
+  <meta name="description" content="Git 命令速查、测试分支工作流、单元测试实践与一次真实合并冲突的完整复盘">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .diagram-shell:not(.pan-zoom-container) { padding: 20px; }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell:not(.pan-zoom-container) .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #test-branch-flow svg,
+    #conflict-flow svg {
+      max-width: 100% !important;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#git-cheatsheet">2. Git 命令速查</a></li>
+          <li><a href="#idea-map">3. Git 命令与 IDEA 对应表</a></li>
+          <li><a href="#test-branch">4. 测试分支工作流</a></li>
+          <li><a href="#unit-test">5. 单元测试实践</a></li>
+          <li><a href="#retrospective">6. 合并冲突复盘</a></li>
+          <li><a href="#commands">7. 关键 Git 命令详解</a></li>
+          <li><a href="#memory">8. 记忆要点与自测</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>学习文档：Git 工作流与合并冲突复盘</h1>
+      <p class="lead">本文汇总一次真实开发会话中的四类知识：按场景分类的 Git 命令速查（含 IDEA 图形化对应）、"远程功能分支 + 本地测试分支"的测试工作流、一次单元测试实践，以及一次<strong>合并冲突 → 错误推送 → revert → cherry-pick 挽救</strong>的完整复盘。</p>
+      <p class="scope-note"><strong>范围：</strong>案例均为项目实况（功能分支 <code>XQ-#16441冻品订单报价审批页新增产品名称筛选-0709-zsl</code>），提交哈希只用于复盘对照；命令本身可迁移到任意 Git 仓库。PowerShell 环境下部分命令需加引号（如 <code>git log "@{u}..HEAD"</code>）。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>这份文档回答三个问题：</p>
+        <ol>
+          <li><strong>怎么查、怎么比、怎么撤销</strong>——日常 Git 操作速查（命令 + IDEA 路径双份）；</li>
+          <li><strong>测试代码怎么放</strong>——业务代码进功能分支、测试代码留本地测试分支的工作流；</li>
+          <li><strong>错误合并推上远程后怎么救</strong>——一次真实事故的完整处理链：revert 撤销、历史改写检测、cherry-pick 精确重放。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="git-cheatsheet">
+        <h2 id="git-cheatsheet">2. Git 命令速查</h2>
+
+        <h3>2.1 查看状态</h3>
+        <pre><code class="language-bash">git status              # 查看当前分支状态
+git branch              # 查看本地分支列表
+git branch -vv          # 查看分支及对应的远程追踪分支</code></pre>
+
+        <h3>2.2 比较差异</h3>
+        <pre><code class="language-bash"># 本地已提交但未推送 vs 远程
+git log origin/HEAD..HEAD
+git log HEAD..origin/HEAD
+git diff origin/HEAD..HEAD
+
+# 当前分支 vs 远程对应分支（PowerShell 需加引号）
+git log "@{u}..HEAD"
+git log "HEAD..@{u}"
+git diff "@{u}..HEAD"
+
+# 两个本地分支比较
+git diff A..B
+git diff --name-only A B          # 只看文件名
+git difftool A B                   # 图形化比较
+
+# 当前分支 vs 远程对应分支
+git fetch                          # 先更新远程信息
+git diff @{upstream}
+git diff --name-only @{upstream}
+git log @{upstream}..HEAD          # 本地比远程多哪些
+git log HEAD..@{upstream}          # 远程比本地多哪些</code></pre>
+
+        <h3>2.3 分支操作</h3>
+        <pre><code class="language-bash"># 创建新分支
+git checkout -b test-branch
+
+# 切换分支
+git switch 分支名
+git checkout 分支名
+
+# 删除本地分支
+git branch -D 分支名
+
+# 移除远程追踪关系
+git branch --unset-upstream 分支名</code></pre>
+
+        <h3>2.4 丢弃修改</h3>
+        <pre><code class="language-bash">git checkout -- .        # 丢弃已修改但未 add 的文件
+git restore .              # 同上（新版 Git 推荐）
+git clean -fd             # 删除所有未跟踪文件和目录（永久删除，慎用）</code></pre>
+
+        <h3>2.5 暂存与提交</h3>
+        <pre><code class="language-bash">git stash push -m "描述"   # 暂存当前修改
+git stash pop              # 恢复最近一次暂存
+git add .                  # 添加到暂存区
+git commit -m "描述"       # 提交到本地分支</code></pre>
+
+        <h3>2.6 远程操作</h3>
+        <pre><code class="language-bash">git fetch                  # 更新远程分支信息（不合并）</code></pre>
+      </section>
+
+      <section aria-labelledby="idea-map">
+        <h2 id="idea-map">3. Git 命令与 IDEA 对应表</h2>
+        <p>IDEA 对 Git 的支持非常完善，几乎所有命令都有对应的图形化操作。</p>
+        <table>
+          <thead>
+            <tr><th>Git 命令</th><th>IDEA 操作路径</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>git status</code></td><td>右下角状态栏 / <strong>Git</strong> 工具窗口</td></tr>
+            <tr><td><code>git branch</code> / <code>git branch -vv</code></td><td>右下角分支切换器 / <strong>Git</strong> 工具窗口 → <strong>Branches</strong></td></tr>
+            <tr><td><code>git log</code></td><td><strong>Git</strong> 工具窗口 → <strong>Log</strong> 标签页</td></tr>
+            <tr><td><code>git diff A..B</code></td><td><strong>Git</strong> → <strong>Compare with Branch...</strong></td></tr>
+            <tr><td><code>git diff --name-only</code></td><td>比较时左侧只显示变更文件列表</td></tr>
+            <tr><td><code>git fetch</code></td><td><strong>Git</strong> → <strong>Fetch</strong> 或工具栏 Fetch 按钮</td></tr>
+            <tr><td><code>git checkout -b</code></td><td><strong>Git</strong> → <strong>New Branch...</strong></td></tr>
+            <tr><td><code>git switch</code> / <code>git checkout</code></td><td>右下角分支名 → <strong>Checkout</strong></td></tr>
+            <tr><td><code>git add</code></td><td>Commit 面板中点击 <code>+</code> 号（绿色为已 add）</td></tr>
+            <tr><td><code>git commit</code></td><td><strong>Commit</strong> 按钮（<code>Ctrl + K</code>）</td></tr>
+            <tr><td><code>git stash</code></td><td><strong>Git</strong> → <strong>Stash Changes...</strong></td></tr>
+            <tr><td><code>git stash pop</code></td><td><strong>Git</strong> → <strong>Unstash Changes...</strong></td></tr>
+            <tr><td><code>git checkout -- .</code> / <code>git restore</code></td><td>右键文件 → <strong>Git</strong> → <strong>Rollback</strong></td></tr>
+            <tr><td><code>git clean -fd</code></td><td>没有直接对应，需手动删除或使用 Terminal</td></tr>
+            <tr><td><code>git branch -D</code></td><td><strong>Git</strong> 工具窗口 → 右键分支 → <strong>Delete</strong></td></tr>
+            <tr><td><code>git merge</code></td><td><strong>Git</strong> → <strong>Merge...</strong></td></tr>
+          </tbody>
+        </table>
+        <p><strong>常用场景快速操作</strong>：比较两个分支差异用 <strong>Compare with Branch...</strong>；丢弃所有未提交修改用 <strong>Rollback...</strong>（或右键项目根目录 → Git → Rollback...）；创建本地测试分支用右下角分支名 → <strong>New Branch...</strong>；暂存修改用 <strong>Stash Changes...</strong>。复杂操作（如 <code>git clean</code>）可以在 IDEA 内置 Terminal 中执行。</p>
+      </section>
+
+      <section aria-labelledby="test-branch">
+        <h2 id="test-branch">4. 测试分支工作流</h2>
+        <p>核心思想：<strong>业务代码进功能分支（远程同步），测试代码留在本地测试分支（不推远程）</strong>，功能分支合并 dev 时天然干净。</p>
+        <p>下图回答：测试代码放在哪里、测试通过后各分支如何处理？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="test-branch-flow">
+flowchart TD
+    A["远程 dev"] --> B["功能分支<br/>（远程同步，只含业务代码）"]
+    B --> C["本地切出测试分支<br/>（不推远程）"]
+    C --> D["添加测试代码"]
+    D --> E["运行测试 → 通过"]
+    E --> F["生成测试报告<br/>（本地留存）"]
+    B --> G["功能分支直接合并到 dev<br/>（无测试代码，合并干净）"]
+    C -.-> H["测试分支用完即删<br/>需要时可随时重建"]
+            </div>
+          </div>
+          <figcaption>图 1：远程功能分支 + 本地测试分支工作流</figcaption>
+        </figure>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>方案优势</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>功能分支</strong></td><td>只含业务代码，直接合并 dev，无需手动删除测试代码</td></tr>
+            <tr><td><strong>测试分支</strong></td><td>本地管理，不推远程，不污染远程仓库，用完即删</td></tr>
+            <tr><td><strong>测试报告</strong></td><td>本地生成、本地留存，不占用远程空间，按需查看</td></tr>
+            <tr><td><strong>代码隔离</strong></td><td>业务和测试物理隔离，功能分支提交历史清晰</td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.1 完整操作步骤</h3>
+        <ol>
+          <li><strong>确认当前在功能分支</strong>，业务代码已开发完成（<code>git branch</code> 输出 <code>* XQ-#16441...</code>）。</li>
+          <li><strong>从功能分支切出本地测试分支</strong>：<code>git checkout -b local-test-#16441</code>，用 <code>git branch -vv</code> 确认没有 <code>origin/</code> 前缀。</li>
+          <li><strong>在测试分支上添加测试代码</strong>：后端建 <code>src/test/java/...</code> 目录，前端建 <code>tests/unit/...</code>（jest.config.js、setup.js、*.spec.js 等）。</li>
+          <li><strong>运行测试</strong>：后端 <code>mvn clean test</code>；前端 <code>npm run test:unit</code>。</li>
+          <li><strong>测试通过后生成测试报告</strong>（保存在本地，不上传）。</li>
+          <li><strong>切回功能分支，合并到 dev</strong>：<code>git switch 功能分支</code> → <code>git status</code> 确认只有业务代码 → <code>git checkout dev</code> → <code>git merge --no-ff 功能分支</code>。</li>
+          <li><strong>（可选）删除本地测试分支</strong>：<code>git branch -D local-test-#16441</code>；后续需要修改测试时可随时重新切出。</li>
+        </ol>
+
+        <h3>4.2 关键注意事项</h3>
+        <ul>
+          <li><strong>测试分支不要推送到远程</strong>：<code>git push -u origin local-test-#16441</code> 是错误操作，什么都不做即可。</li>
+          <li><strong>测试报告保存在本地</strong>：如《代码检查报告_#16441...md》《单元测试报告_#16441...md》。</li>
+          <li><strong>业务代码有变更时同步测试分支</strong>：切回测试分支后 <code>git merge 功能分支</code>。</li>
+          <li><strong><code>.gitignore</code> 不需要排除测试代码</strong>：因为测试分支本身不推远程。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="unit-test">
+        <h2 id="unit-test">5. 单元测试实践</h2>
+        <p>本次验证针对 <code>MyFrozenOrderStockPreparationTaskManager.java</code> 中的两个方法：<code>roundToInteger(BigDecimal)</code>（四舍五入 + null 安全）与 <code>pushProgressMessage(...)</code>（消息模板 + 字段映射 + 异常处理），两者实现均验证正确。</p>
+
+        <h3>5.1 <code>roundToInteger()</code> 测试覆盖（8 个用例）</h3>
+        <table>
+          <thead>
+            <tr><th>测试方法</th><th>输入</th><th>预期</th><th>验证点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>testRoundToInteger_LessThanHalf</td><td><code>1.4</code></td><td><code>1</code></td><td>四舍</td></tr>
+            <tr><td>testRoundToInteger_EqualToHalf</td><td><code>1.5</code></td><td><code>2</code></td><td>五入</td></tr>
+            <tr><td>testRoundToInteger_GreaterThanHalf</td><td><code>1.6</code></td><td><code>2</code></td><td>五入</td></tr>
+            <tr><td>testRoundToInteger_ExactInteger</td><td><code>100</code></td><td><code>100</code></td><td>整数不变</td></tr>
+            <tr><td>testRoundToInteger_NegativeLessThanHalf</td><td><code>-1.4</code></td><td><code>-1</code></td><td>负数四舍</td></tr>
+            <tr><td>testRoundToInteger_NegativeEqualToHalf</td><td><code>-1.5</code></td><td><code>-2</code></td><td>负数五入</td></tr>
+            <tr><td>testRoundToInteger_NullValue</td><td><code>null</code></td><td><code>0</code></td><td>null 安全</td></tr>
+            <tr><td>testRoundToInteger_LargeValue</td><td><code>999999.999</code></td><td><code>1000000</code></td><td>极大值</td></tr>
+          </tbody>
+        </table>
+
+        <h3>5.2 <code>pushProgressMessage()</code> 测试覆盖（4 个用例）</h3>
+        <table>
+          <thead>
+            <tr><th>测试方法</th><th>场景</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>testPushProgressMessage_MessageFormat</td><td>正常数据，含小数，验证消息格式</td></tr>
+            <tr><td>testPushProgressMessage_WithNullFields</td><td>KG 字段全为 null，验证显示为 0</td></tr>
+            <tr><td>testPushProgressMessage_EmptyCustomerManagerCode</td><td>编码为空，验证不抛异常</td></tr>
+            <tr><td>testPushProgressMessage_RoundResult</td><td>小数四舍五入结果验证</td></tr>
+          </tbody>
+        </table>
+
+        <h3>5.3 运行方式</h3>
+        <pre><code class="language-bash"># 运行全部测试
+mvn test
+
+# 运行单个测试类
+mvn test -Dtest=MyFrozenOrderStockPreparationTaskManagerTest
+
+# 运行单个方法
+mvn test -Dtest=MyFrozenOrderStockPreparationTaskManagerTest#testRoundToInteger_NullValue</code></pre>
+
+        <h3>5.4 本地无需启动后端即可测试</h3>
+        <ul>
+          <li>使用 <strong>Mockito</strong> mock 了 <code>MySendDingDingMessageBiz</code>。</li>
+          <li>不依赖数据库、不启动 Spring 容器、不连接钉钉服务器。</li>
+          <li>测试在纯 JVM 中完成，与后端服务是否启动无关。</li>
+        </ul>
+
+        <h3>5.5 遇到的问题及解决</h3>
+        <table>
+          <thead>
+            <tr><th>问题</th><th>原因</th><th>解决方案</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>IDEA 运行测试报错"命令行过长"</td><td>Windows 命令行长度限制（约 32767 字符）</td><td>Run → Edit Configurations → Shorten command line → 选择 <strong>JAR manifest</strong></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="retrospective">
+        <h2 id="retrospective">6. 合并冲突复盘</h2>
+        <p>本次问题主要经历了四个阶段。下图回答：错误合并推上远程后，每一步用什么命令、为什么不能用 merge 直接挽救？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="conflict-flow" data-fit="scroll">
+flowchart LR
+    A["功能分支实现产品筛选"] --> B["第一次 merge 到 dev"]
+    B --> C{"解决冲突时混合保留两边代码"}
+    C --> D["形成'只合并了一半'的代码<br/>（有方法无界面）"]
+    D --> E["错误结果被推送到远程 dev"]
+    E --> F["git revert -m 1 撤销合并<br/>（不删历史，新建反向提交）"]
+    F --> G{"merge-base 检测：<br/>功能提交已不在 dev 历史中"}
+    G --> H["远程 dev 历史被改写"]
+    H --> I["不能直接 merge 功能分支<br/>（会带入大量旧历史）"]
+    I --> J["git cherry-pick 精确重放<br/>功能提交的差异"]
+    J --> K["IDEA 三方合并逐段解决"]
+    K --> L["验证：单文件、无冲突标记、fast-forward 推送"]
+            </div>
+          </div>
+          <figcaption>图 2：错误合并 → revert → cherry-pick 的完整挽救链</figcaption>
+        </figure>
+
+        <h3>6.1 阶段 1：第一次合并时，冲突处理不完整</h3>
+        <p>最初功能分支中已经实现了产品名称下拉筛选（下拉框、产品列表接口、<code>allProductList</code>、<code>productOptions</code>、<code>productCode</code> 查询参数、初始化加载、名称/编码过滤、查询重置页码）。第一次合并到本地 <code>dev</code> 时 <code>toApproval.vue</code> 发生冲突，解决时混合保留了两边代码：</p>
+        <ul>
+          <li>模板保留了 <code>dev</code> 的产品名称普通输入框；<code>data()</code>、<code>mounted()</code> 也保留了 <code>dev</code> 的版本；</li>
+          <li><code>methods</code> 却保留了功能分支的产品列表方法。</li>
+        </ul>
+        <p>结果：有 <code>getAllProductList()</code>、有 <code>productProductData()</code>，但页面仍是普通输入框，没有下拉选项状态、没有调用产品列表接口。</p>
+        <p class="scope-note"><strong>教训：</strong>Git 只负责判断冲突标记是否被删除，不会判断业务代码是否完整。错误结果仍然可以提交和推送。</p>
+
+        <h3>6.2 阶段 2：错误合并结果被推送到远程 dev</h3>
+        <p>第一次错误合并产生了 Merge commit <code>5ac534f87</code> 并被推送到远程 <code>dev</code>。当时 GitLab 同时显示功能提交 <code>0fc15fff5</code>（新增下拉列表筛选商品名称）和合并提交 <code>5ac534f87</code>——这不是重复上传：功能提交在功能分支上，合并提交记录两个分支之间的合并关系。</p>
+
+        <h3>6.3 阶段 3：使用 Revert 恢复远程 dev</h3>
+        <pre><code class="language-powershell">git revert -m 1 5ac534f87 --no-edit</code></pre>
+        <ul>
+          <li>产生反向提交 <code>d615fc2e5</code>；<code>git revert</code> 不删除历史，只创建一个新提交抵消目标提交的代码效果；</li>
+          <li><code>-m 1</code> 表示以 Merge commit 的第一个父提交（合并前的 <code>dev</code>）作为主线；</li>
+          <li>推送后远程 <code>dev</code> 成功恢复到合并前的代码效果。验证：<code>git diff 8cccb2c8b HEAD -- src/.../toApproval.vue</code> 无输出。</li>
+        </ul>
+
+        <h3>6.4 阶段 4：后续远程 dev 的历史被改写</h3>
+        <pre><code class="language-powershell">git merge-base --is-ancestor c5b290930 origin/dev   # 结果为否</code></pre>
+        <p>功能提交 <code>c5b290930</code> 不再是当前远程 <code>dev</code> 的祖先提交，说明远程 <code>dev</code> 的历史被重置、改写或换成了另一条提交历史，而不是单纯的"后续提交覆盖了功能代码"。但原功能提交仍安全保存在功能分支中。此时不能直接 merge 整个功能分支（携带大量旧 merge、revert 历史），正确方法是 <code>git cherry-pick c5b290930</code>，只把该提交的代码差异重新应用到最新 <code>dev</code>。</p>
+
+        <h3>6.5 最终采用的处理方案</h3>
+        <ol>
+          <li><strong>最新远程 dev 作为基线</strong>：<code>git fetch origin</code> → <code>git switch dev</code> → <code>git pull --ff-only origin dev</code>（当时最新为 <code>fb3707686</code>）。</li>
+          <li><strong>Cherry-pick 原功能提交</strong>：<code>git cherry-pick c5b290930</code>；因两条历史都修改了 <code>toApproval.vue</code>，发生冲突。</li>
+          <li><strong>IDEA 可视化解决冲突</strong>：<code>Current / Yours / HEAD</code> 为当前最新 dev；<code>Incoming / Theirs</code> 为要引入的代码；<code>Result</code> 为最终结果。逐段保留：从功能提交保留两个子页面标题、产品名称下拉框、产品列表 API、<code>allProductList</code>/<code>productOptions</code>/<code>productCode</code>、<code>getAllProductList()</code>/<code>productProductData()</code>、查询重置页码；从最新 dev 保留"丢单待确认"逻辑：</li>
+        </ol>
+        <pre><code class="language-javascript">if (Number(cellValue) === 2 && Number(row.approvalStatus) !== 3) {
+  return { text: '丢单待确认', color: '#F56C6C' }
+}</code></pre>
+        <p>Cherry-pick 成功生成新提交 <code>39f3c28a6 完善产品名称下拉筛选</code>。检查结果：只领先远程 <code>dev</code> 一个提交、只修改一个 Vue 文件、没有冲突标记、没有未合并文件、推送是 Fast-forward、ESLint 为 0 errors / 5 warnings（原文件已有格式警告）。</p>
+
+        <h3>6.6 最终代码实现内容</h3>
+        <ol>
+          <li><strong>两个子页面都有对应标题</strong>：<code>searchType === 1</code> 显示"待我审批({{ toDoNum }})"，否则显示"全部"。</li>
+          <li><strong>搜索选项保持右对齐</strong>：<code>main-title</code> 用 <code>display: flex; align-items: center; justify-content: space-between;</code>，标题在左、搜索项整体在右。</li>
+          <li><strong>产品名称下拉筛选</strong>：<code>el-select</code> 使用 <code>filterable remote clearable</code> + <code>:remote-method="productProductData"</code> + <code>@change="search"</code>；显示 <code>productName</code>、选中值为 <code>productCode</code>、支持按名称或编码过滤、选择或清空后重新查询。</li>
+          <li><strong>搜索重置分页</strong>：<code>search()</code> 中 <code>this.page.currentPage = 1</code> 后调 <code>getTableData()</code>，并 <code>$bus.$emit('updateCornerIcon')</code>。</li>
+          <li><strong>保留最新业务逻辑</strong>：没有用旧版文件整体覆盖最新 dev。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="commands">
+        <h2 id="commands">7. 关键 Git 命令详解</h2>
+
+        <h3>7.1 常用检查与切换命令</h3>
+        <table>
+          <thead>
+            <tr><th>命令</th><th>作用</th><th>本次案例要点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>git status</code></td><td>查看分支、未提交修改、暂存文件、未跟踪文件，以及是否处于 merge/rebase/cherry-pick 中</td><td>发现未跟踪项 <code>nul</code>，不要用 <code>git add .</code> 以免夹带无关文件</td></tr>
+            <tr><td><code>git fetch origin</code></td><td>更新远程跟踪引用，不修改本地文件、不自动合并</td><td>检查远程是否变化的安全命令</td></tr>
+            <tr><td><code>git switch dev</code></td><td>切换到本地 dev 分支，不会自动更新远程代码</td><td>分支名含 <code>#</code> 时建议加引号</td></tr>
+            <tr><td><code>git pull --ff-only origin dev</code></td><td>仅允许 Fast-forward 更新；本地与远程分叉时直接失败，不自动生成 Merge commit</td><td>比普通 <code>git pull</code> 更安全</td></tr>
+            <tr><td><code>git merge-base --is-ancestor &lt;commit&gt; origin/dev</code></td><td>判断某提交是否仍是远程分支的祖先</td><td>返回失败证明远程 dev 历史被改写</td></tr>
+            <tr><td><code>git branch --all --contains &lt;commit&gt;</code></td><td>查看哪些分支仍包含该提交</td><td>确认提交仍可找回</td></tr>
+            <tr><td><code>git log --oneline origin/dev..HEAD</code></td><td>显示本地领先远程的提交</td><td>推送前确认只会推送一个提交</td></tr>
+            <tr><td><code>git diff --stat origin/dev...HEAD</code></td><td>查看相对远程修改了哪些文件及规模</td><td>防止夹带其他文件（1 file changed, 52 insertions）</td></tr>
+            <tr><td><code>git diff origin/dev...HEAD -- &lt;file&gt;</code></td><td>查看最终提交的实际代码变化</td><td>确认产品筛选被恢复、最新逻辑未删除</td></tr>
+            <tr><td><code>git diff --check origin/dev...HEAD</code></td><td>检查行尾空格等格式问题</td><td>没有输出表示通过</td></tr>
+            <tr><td><code>git grep -n -E "^(&lt;&lt;&lt;&lt;&lt;&lt;&lt;|=======|&gt;&gt;&gt;&gt;&gt;&gt;&gt;)" HEAD -- &lt;file&gt;</code></td><td>检查是否残留冲突标记</td><td>没有输出表示无残留</td></tr>
+            <tr><td><code>git merge-base --is-ancestor origin/dev HEAD</code></td><td>判断推送是否 Fast-forward</td><td>是则普通 push 即可，不需要强制推送</td></tr>
+            <tr><td><code>git push origin dev</code></td><td>推送本地 dev 新增提交</td><td>绝不用 <code>git push --force</code>：会改写共享分支历史</td></tr>
+          </tbody>
+        </table>
+
+        <h3>7.2 Cherry-pick 系列</h3>
+        <table>
+          <thead>
+            <tr><th>命令</th><th>作用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>git cherry-pick &lt;commit&gt;</code></td><td>只提取指定提交产生的代码差异应用到当前分支，成功后生成新提交哈希；不合并整段历史</td></tr>
+            <tr><td><code>git status</code> / <code>git diff --cc</code></td><td>冲突时显示 <code>You are currently cherry-picking...</code>；<code>diff --cc</code> 查看冲突双方与合并结果</td></tr>
+            <tr><td><code>git add &lt;file&gt;</code></td><td>把已处理的目标文件加入暂存区，告诉 Git 该文件冲突已解决（应指定文件，不要 <code>git add .</code>）</td></tr>
+            <tr><td><code>git cherry-pick --continue</code></td><td>所有冲突解决并暂存后继续，创建最终新提交（IDEA 自动完成则无需执行）</td></tr>
+            <tr><td><code>git cherry-pick --abort</code></td><td>放弃当前 cherry-pick，恢复到执行前状态（仅在进行中时可用；已完成则不能撤销最终提交）</td></tr>
+            <tr><td><code>git cherry-pick --skip</code></td><td>放弃正在应用的提交，继续序列中下一个（只挑一个提交时等于放弃功能，不应使用）</td></tr>
+          </tbody>
+        </table>
+
+        <h3>7.3 Merge、Revert、Cherry-pick 的区别</h3>
+        <table>
+          <thead>
+            <tr><th>命令</th><th>作用</th><th>本次案例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>git merge &lt;branch&gt;</code></td><td>合并一个分支的提交历史，可能带入多个提交、创建 Merge commit</td><td>不适合：功能分支包含大量旧 merge/revert 历史</td></tr>
+            <tr><td><code>git revert &lt;commit&gt;</code></td><td>创建反向提交抵消目标提交的代码效果，不删除历史；撤销 Merge commit 需 <code>-m 1</code> 指定主线</td><td>用于安全撤销已推送的错误合并</td></tr>
+            <tr><td><code>git cherry-pick &lt;commit&gt;</code></td><td>只选取一个指定提交的差异应用到当前分支，产生新提交</td><td>用于在历史被改写后精确重放功能提交</td></tr>
+          </tbody>
+        </table>
+
+        <h3>7.4 推送后验证</h3>
+        <pre><code class="language-powershell">git fetch origin
+git status
+git rev-parse HEAD
+git rev-parse origin/dev
+git log -3 --oneline --decorate origin/dev</code></pre>
+        <p>如果 <code>git rev-parse HEAD</code> 与 <code>git rev-parse origin/dev</code> 输出相同，本地与远程 <code>dev</code> 已完全同步。</p>
+        <p class="scope-note"><strong>最终状态：</strong>本地 dev 为 <code>39f3c28a6</code>、远程 dev 为 <code>fb3707686</code>，本地只领先一个提交，只修改 <code>src/views/slaughter-opms/orderManage/orderDetail/toApproval.vue</code>，同时保留两个子页面标题、搜索条件右对齐、产品名称下拉筛选、查询重置页码与最新 dev 的"丢单待确认"逻辑。</p>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">8. 记忆要点与自测</h2>
+        <h3>记忆要点</h3>
+        <ol>
+          <li><strong>功能分支管业务、测试分支管测试</strong>：测试代码不推远程，合并天然干净。</li>
+          <li><strong>revert 撤销已推送的错误</strong>：不删历史、新建反向提交；撤销 merge 要 <code>-m 1</code>。</li>
+          <li><strong>merge 带历史、cherry-pick 带差异</strong>：分支历史脏时用 cherry-pick 精确重放。</li>
+          <li><strong>merge-base --is-ancestor</strong> 判断提交是否还在分支历史中，是检测"历史改写"的关键工具。</li>
+          <li><strong>push 前先看 <code>log --oneline origin/dev..HEAD</code> 和 <code>diff --stat</code></strong>：确认只推该推的。</li>
+        </ol>
+        <h3>自测问题</h3>
+        <ol>
+          <li>为什么错误合并已经 revert 后，功能提交仍可能"消失"？如何检测？</li>
+          <li>功能分支历史很脏（大量 merge/revert）时，为什么 merge 不合适、cherry-pick 合适？</li>
+          <li><code>git pull --ff-only</code> 与 <code>git pull</code> 的区别是什么？</li>
+          <li>测试分支为什么不需要在 <code>.gitignore</code> 中排除测试代码？</li>
+          <li><code>git cherry-pick --abort</code> 与 <code>--skip</code> 分别在什么场景使用？</li>
+        </ol>
+        <details>
+          <summary>参考答案</summary>
+          <ol>
+            <li>revert 只抵消代码效果，不改变提交存在性；若后续远程历史被改写（reset/换历史），原提交不再属于当前 dev 历史。用 <code>git merge-base --is-ancestor &lt;commit&gt; origin/dev</code> 检测，返回失败即不在历史中。</li>
+            <li>merge 会把功能分支上的全部历史（包括旧 merge/revert）一起带入，产生大量无关提交；cherry-pick 只提取目标提交的差异，生成干净的新提交。</li>
+            <li><code>--ff-only</code> 只允许快进，本地与远程分叉时直接失败，不会在不知情时创建合并提交；普通 pull 可能自动 merge。</li>
+            <li>因为测试分支本身就不推送到远程，测试代码永远不会进入共享仓库，无需 gitignore。</li>
+            <li><code>--abort</code> 放弃整个 cherry-pick 操作恢复到执行前；<code>--skip</code> 放弃当前这一个提交、继续序列中的下一个（单个提交场景下等于放弃功能）。</li>
+          </ol>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis', nodeSpacing: 25, rankSpacing: 35 }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.querySelectorAll('.mermaid[data-fit="scroll"] svg').forEach(function (svg) {
+        var vb = svg.viewBox.baseVal;
+        if (vb && vb.width > 0) {
+          svg.style.setProperty('width', vb.width + 'px', 'important');
+          svg.style.setProperty('max-width', 'none', 'important');
+          svg.style.setProperty('height', 'auto', 'important');
+          svg.style.setProperty('flex-shrink', '0', 'important');
+        }
+      });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active;
+      if (atBottom) {
+        active = headings[headings.length - 1];
+      } else {
+        active = headings[0];
+        headings.forEach(function (heading) {
+          if (heading.offsetTop <= marker) active = heading;
+        });
+      }
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>月度成本页面前后端完整实现报告</title>
+  <meta name="description" content="月度入库成本页面的业务链、前端实现、API 合同、状态机、日成本三源合并、Mongo 模型与从零复现的项目知识说明">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .toc .toc-sub {
+      padding-left: 22px;
+      font-size: 0.84rem;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    .diagram-shell:not(.pan-zoom-container) { padding: 20px; }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell:not(.pan-zoom-container) .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    #chain-map svg {
+      max-width: 100% !important;
+    }
+
+    #source-merge svg {
+      max-width: min(560px, 100%) !important;
+      display: block;
+      margin: 0 auto;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    details {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 650;
+      color: var(--accent);
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#overview">1. 结论与范围</a></li>
+          <li><a href="#stack">2. 工程与技术栈</a></li>
+          <li><a href="#frontend">3. 前端实现</a></li>
+          <li><a href="#api">4. 前后端 API 合同</a></li>
+          <li><a href="#backend">5. 成本服务实现</a></li>
+          <li><a href="#calc">6. 月度自动计算</a></li>
+          <li><a href="#mdm">7. MDM 三类数据接口</a></li>
+          <li><a href="#mongo">8. MongoDB 数据模型</a></li>
+          <li><a href="#reproduce">9. 从零复现</a></li>
+          <li><a href="#testing">10. 测试与验证现状</a></li>
+          <li><a href="#tech-points">11. 全部技术点汇总</a></li>
+          <li><a href="#risks">12. 当前实现风险</a></li>
+          <li><a href="#navigation">13. 关键代码导航</a></li>
+          <li><a href="#memory">14. 最终记忆主线</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>月度成本页面前后端完整实现报告</h1>
+      <p class="lead">"月度入库成本"不是孤立的 Vue 页面，而是一条跨 <strong>3 个工程、4 类存储/数据源和 1 个调度平台</strong>的业务链。本文以当前磁盘代码为准，说明页面、接口、计算链路、数据模型和运行环境，使开发人员能按文重建。</p>
+      <p class="scope-note"><strong>证据原则：</strong>本文以当前磁盘代码为准。代码不能证明的网关、Nacos、数据库连接、XXL-JOB 管理端配置等均明确标注为"环境待确认"。文中不记录仓库里出现的明文密钥。</p>
+
+      <section aria-labelledby="overview">
+        <h2 id="overview">1. 结论与范围</h2>
+        <figure>
+          <div class="diagram-shell">
+            <div id="chain-map" class="mermaid" data-fit="scroll">
+flowchart LR
+    subgraph FE["前端（Vue 2）"]
+        A1["月度成本页"] --> A2["Axios /api 网关请求"]
+    end
+    A2 --> B["frozen-cost-accounting<br/>成本服务"]
+    B --> C1["MongoDB：saved / submitted"]
+    B --> C2["MySQL：产品规格、分类、冻品属性"]
+    B --> C3["Feign → MDM 服务"]
+    C3 --> D1["Hologres BI 日入库重量"]
+    C3 --> D2["Hologres 鲜品自然月均价"]
+    C3 --> D3["Hologres SAP ZCO116D 定制品日成本"]
+    B --> C4["MongoDB：定值/系数已提交日成本"]
+    B --> E["分页 VO（factories 数组）"]
+    E --> A1
+    subgraph JOB["XXL-JOB 每月 2 日 07:00"]
+        J1["frozenMonthlyCostCalcJob"] --> J2["FrozenMonthlyCostCalcHandler"]
+    end
+    J2 --> B
+            </div>
+          </div>
+          <figcaption>问题：月度成本页面涉及哪些系统？——三条数据进、一条分页出，外加一条定时计算侧线</figcaption>
+        </figure>
+
+        <p>本文覆盖当前实现中的查询与筛选、动态厂区列、前端草稿、整体/单厂编辑、批量保存、整月提交、定时计算、日成本三源合并、BI 加权、鲜价校验、Mongo 双集合、下拉接口、临时重算与日明细接口、构建部署和测试现状。</p>
+        <p><strong>不把设计文档中尚未落地的方案当作现状</strong>：计算就绪元数据 <code>calcReady/dataReady/editable/notReadyReason</code>、真正的导出、定制品批量查询均未在当前代码中实现。</p>
+
+        <h3>1.1 当前代码基线</h3>
+        <table>
+          <thead><tr><th>工程</th><th>当前分支</th><th>当前提交</th><th>工作区状态</th></tr></thead>
+          <tbody>
+            <tr><td><code>my-a-soa-front-slaughter-opms</code></td><td><code>XQ-#15519冻品成本线上化-0710-lg</code></td><td><code>ab705a9c7</code></td><td>有修改/未跟踪的锁文件、测试、coverage 和测试报告</td></tr>
+            <tr><td><code>muyuan-slaughter-opms-frozen-cost-accounting</code></td><td><code>15519-20260709-master</code></td><td><code>c4d823b</code></td><td>Mongo revision2/revision3、月度测试及部分文档未跟踪</td></tr>
+            <tr><td><code>muyuan-slaughter-mdm-opms</code></td><td><code>15519-20260709-master</code></td><td><code>5313fe1f</code></td><td>BI/鲜价手工诊断测试等未跟踪</td></tr>
+          </tbody>
+        </table>
+        <p>因此，本报告描述的是"上述提交 + 当前本地工作区文件"的组合，不等价于任一干净 Git 提交或已发布制品。</p>
+      </section>
+
+      <section aria-labelledby="stack">
+        <h2 id="stack">2. 工程与技术栈</h2>
+
+        <h3>2.1 前端工程</h3>
+        <table>
+          <thead><tr><th>类别</th><th>技术</th><th>当前用途</th></tr></thead>
+          <tbody>
+            <tr><td>框架</td><td>Vue 2.6、Vue Router 3、Vuex 3</td><td>页面组件、静态路由、用户信息</td></tr>
+            <tr><td>UI</td><td>Element UI 2.15、Avue</td><td>日期/月选择、下拉、按钮、对话框、分页、消息提示</td></tr>
+            <tr><td>HTTP</td><td>Axios + 自定义拦截器</td><td>网关请求、token/header、统一业务错误处理</td></tr>
+            <tr><td>构建</td><td>Rsbuild/Rspack、Vue2 插件、Babel、Sass</td><td>开发服务器、生产构建、Vue SFC 与 SCSS</td></tr>
+            <tr><td>测试</td><td>Jest 29、Vue Test Utils 1、vue2-jest</td><td><code>monthlyCost.spec.js</code> 单元测试</td></tr>
+          </tbody>
+        </table>
+        <p><strong>环境待确认</strong>：Vue、VueRouter、Vuex、Axios、ECharts、Element UI 等被 external，由 <code>public/index.html</code> 的 CDN 全局变量提供；<code>package.json</code> 声明 Axios <code>^0.18.0</code>，CDN 实际版本可能不同，复现时必须以页面加载的 CDN 为准。开发代理把 <code>/api</code> 转发到开发环境网关；<code>npm run dev</code> 没有显式固定端口。</p>
+
+        <h3>2.2 成本服务</h3>
+        <p>Java 8、Maven 多模块、Spring Boot 2.7 系、Spring MVC、Spring Data MongoDB/MongoTemplate、Mongo 事务、MyBatis/MyBatis-Plus、Dynamic Datasource、OpenFeign、Nacos、XXL-JOB、Swagger、Undertow、平台统一 <code>R</code> 响应。关键模块：<code>*-api</code>（DTO/VO）、<code>*-base-common</code>（枚举、厂区映射）、<code>*-dal</code>（Document/Repository/Mapper）、<code>*-external-api</code>（MDM Feign 契约）、<code>*-service</code>（Controller/Service/Handler）、<code>*-job</code>（XXL-JOB）、<code>*-start</code>（启动类与事务管理器）。</p>
+
+        <h3>2.3 MDM 数据服务</h3>
+        <p>Java 8、Spring Boot、Maven 十模块微服务。月度成本相关 Provider 的实际结构不是名为 Provider 的类，而是：<code>Controller → Service → Mapper interface → Mapper XML → Hologres rs_ads 表</code>。</p>
+
+        <h3>2.4 外部基础设施（完整复现至少需要）</h3>
+        <ul>
+          <li>API 网关与平台登录/token 体系；</li>
+          <li>Nacos 配置中心和服务注册发现；</li>
+          <li>MongoDB 副本集或支持事务的分片集群；</li>
+          <li>MySQL 产品主数据；</li>
+          <li>Hologres/兼容 PostgreSQL 数据源 <code>myrs_bigdata_dev</code>；</li>
+          <li>XXL-JOB 管理端与执行器；</li>
+          <li>企业 Maven 私服中的 <code>muyuan-*</code> 平台依赖；前端 CDN 资源可访问。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="frontend">
+        <h2 id="frontend">3. 前端实现</h2>
+
+        <h3>3.1 路由与组件层次</h3>
+        <p>静态 URL 是 <code>/monthlyCost/index</code>。路由先加载父组件 <code>frozenCostAccounting.vue</code>：<code>el-tabs</code> → <code>getInitialTab()</code> 根据 URL 返回 monthly → <code>v-if</code> 创建 <code>monthlyCost/index.vue</code>。页面主体约 1429 行，公共组件：<code>MyCard</code>（白底圆角卡片）、<code>BaseTable</code>（接收 <code>tableData/columns/loading</code>，按 <code>cellSlot</code> 渲染命名插槽）。</p>
+
+        <h3>3.2 查询区与默认值</h3>
+        <table>
+          <thead><tr><th>控件</th><th>绑定字段</th><th>行为</th></tr></thead>
+          <tbody>
+            <tr><td>批次月份</td><td><code>searchForm.batchMonth</code></td><td><code>yyyy-MM</code>；禁用当月及未来月；进入页默认上月</td></tr>
+            <tr><td>三级分类</td><td><code>thirdClassCode</code></td><td>月份变化后请求 <code>/findThreeClasses</code>；改变时清空四级</td></tr>
+            <tr><td>四级分类</td><td><code>fourthClassCode</code></td><td>未选择三级时禁用；请求 <code>/findFourClasses</code></td></tr>
+            <tr><td>规格编码</td><td><code>specCode</code></td><td>本地按 <code>item.code</code> 模糊过滤</td></tr>
+            <tr><td>规格名称</td><td><code>specName</code></td><td>显示名称但 value 仍为规格编码；本地按 <code>item.name</code> 过滤</td></tr>
+            <tr><td>冻品属性</td><td><code>frozenAttribute</code></td><td><code>免冻品</code> / <code>非免冻品</code></td></tr>
+            <tr><td>厂区</td><td><code>selectedFactoryCodes</code></td><td>仅控制页面动态列，不传给 <code>/page</code></td></tr>
+          </tbody>
+        </table>
+        <p>十厂在前端硬编码：103 内乡、104 正阳、118 商水、178 宁陵、205 颍上、176 曹县、163 铁岭、174 奈曼、162 通榆、179 林甸。月份选择器用浏览器本地时间判断当月。</p>
+
+        <h3>3.3 表格列和响应透视</h3>
+        <p>固定列：批次月份、二/三/四级分类、产品状态、规格编码、规格名称、冻品属性；随后追加当前选择的厂区列和操作列。后端返回 <code>factories[]</code>，前端 <code>transformRows()</code> 转换为 <code>row['103'] = 12.34</code> 与 <code>row._factoryMap['103'] = 完整厂区对象</code>。动态厂区单元格从 <code>row[factoryCode]</code> 显示成本，从 <code>_factoryMap</code> 读取初算成本、鲜价、原因和厂区存在性。显示格式为一位小数；后端持久化仍是两位小数。</p>
+        <p><code>tableKey</code> 由所有列 prop 拼接，厂区选择变化时强制重建表格并调用 <code>doLayout()</code>。免冻品厂区列使用浅蓝背景。产品状态映射：<code>1=产品正常全流程可用</code>、<code>2=允许报单，不允许生产</code>、<code>3=全部禁用</code>。</p>
+
+        <h3>3.4 页面查询请求</h3>
+        <pre><code class="language-json">{
+  "batchMonth": "2026-06",
+  "frozenAttribute": "免冻品",
+  "current": 1,
+  "size": 10,
+  "specCode": "可选，编码和名称下拉最终都转为编码",
+  "thirdClassCode": "可选",
+  "fourthClassCode": "可选"
+}</code></pre>
+        <p>厂区多选不进入请求。若规格编码与规格名称两个下拉都选中且编码不同，页面直接提示不匹配而不发请求。<code>searchRequestId</code> 丢弃过期响应，避免快速切换查询条件时旧响应覆盖新数据。</p>
+
+        <h3>3.5 权限与时间状态</h3>
+        <p>角色判断仅为 <code>userInfo.role_name.includes('冻品运营负责人')</code>，该角色才显示保存、提交、手动计算和编辑入口。页面文案声称"每月 2 日 07:00 之后可操作上月"，实际实现是 <code>day === 2 &amp;&amp; hour &gt;= 7</code>——<strong>实际窗口只有每月 2 日 07:00 至 23:59，3 日起又关闭</strong>。判断使用浏览器本地时区，不是 <code>Asia/Shanghai</code>。</p>
+        <p>2 日 07:00 前且查看上月时，页面不请求列表，显示"正在计算中"。它只按时间推测就绪状态，没有读取 Job 实际成功/失败状态。路由守卫只处理 token、锁屏和通用 <code>meta.isAuth</code>；<strong>静态 URL 和前端按钮隐藏不是后端授权</strong>。</p>
+
+        <h3>3.6 编辑弹窗与强校验</h3>
+        <p>编辑分两种模式：厂区编辑（点击厂区成本，携带 <code>factoryCode</code>）与整体编辑（点击"整体编辑"，不携带 <code>factoryCode</code>，后端把同一成本写入全部厂区）。进入编辑前依次检查：负责人、时间窗口、上月、未提交（<code>dataStatus === 2</code> 已提交）、免冻品、目标厂区存在。整体初算展示采用所有厂区 <code>originalCost</code> 的最高值，但真正校验会遍历根层和每个厂区。</p>
+        <p>输入先删除所有非数字和小数点字符，再限制两位小数。<strong>注意：粘贴 <code>-10</code> 会被清洗成 <code>10</code></strong>，这是当前行为。最终正则要求 <code>^\d+(\.\d{1,2})?$</code>。</p>
+        <p>前后端一致的强规则：仅免冻品可编辑；已提交不可编辑；修改原因必填；成本非负、后端 <code>HALF_UP</code> 保留两位；修改成本不得低于系统初算成本；当鲜品价高于月度成本时，差额不得超过五档阈值。</p>
+        <table>
+          <thead><tr><th>月度成本区间（元/kg）</th><th>鲜价最多高出（元/kg）</th></tr></thead>
+          <tbody>
+            <tr><td><code>&lt; 10</code></td><td>0.5</td></tr>
+            <tr><td><code>[10, 20)</code></td><td>0.8</td></tr>
+            <tr><td><code>[20, 30)</code></td><td>1.0</td></tr>
+            <tr><td><code>[30, 40)</code></td><td>2.0</td></tr>
+            <tr><td><code>&gt;= 40</code></td><td>3.0</td></tr>
+          </tbody>
+        </table>
+        <p>鲜价为空，或鲜价不高于修改后成本时跳过价差校验。</p>
+
+        <h3>3.7 前端草稿与批量保存</h3>
+        <p>弹窗"确认"不调用接口，只写入内存 <code>pendingEdits</code>。草稿键：整体 <code>batchMonth|specCode|R</code>；厂区 <code>batchMonth|specCode|F|factoryCode</code>。每项保存 <code>mode/batchMonth/specCode/factoryCode/factoryName/monthlyCost/editReason/originalCost/confirmedAt</code>。</p>
+        <p>同一规格同时存在整体和厂区草稿时使用 <strong>LWW（Last Write Wins）</strong>：比较 <code>confirmedAt</code>，时间更晚者决定该厂区的页面展示。保存队列算法：按 <code>batchMonth|specCode</code> 分组；有整体草稿时先调用整体 <code>/edit</code>；不晚于整体草稿的厂区草稿被整体覆盖，整体成功后一起清除；晚于整体草稿的厂区草稿按确认时间升序继续调用；没有整体草稿时，厂区草稿按确认时间升序保存。<code>saveData()</code> 串行执行队列，成功项从草稿删除并重新查询，失败项保留，允许"部分成功"。<strong>没有服务端批量保存接口</strong>。</p>
+        <p>草稿在同月查询/翻页后通过 <code>mergePendingIntoRows()</code> 回显。切月、重置、浏览器关闭和子组件 <code>beforeRouteLeave</code> 有丢弃提示；但父 tab 的 <code>handleBeforeLeave()</code> 只保护 fixed/coeff，从 monthly tab 切到同页其他 tab 时 monthly 子组件可能被 <code>v-if</code> 销毁而没有可靠提示。</p>
+
+        <h3>3.8 提交与 Axios 请求层</h3>
+        <p>提交前要求负责人、可编辑窗口且没有前端草稿，确认后请求 <code>POST /frozen/monthly-cost/submit</code>，body 为 <code>{"batchMonth":"2026-06"}</code>。<strong>提交是整月操作，不是当前页或当前筛选结果</strong>。API 封装统一前缀 <code>/api/muyuan-slaughter-opms-frozen-cost-accounting</code>；Axios 拦截器负责访客标识、应用编码、Basic Authorization、Bearer token、60 秒默认超时、NProgress、业务码/HTTP 错误提示。手动计算单独把超时设为 15 分钟。由于响应拦截器通常已对非 2xx 业务码 reject，组件里部分 <code>res.data.code !== 200</code> 分支可能不会执行，catch 中又会再次提示，存在重复消息风险。</p>
+      </section>
+
+      <section aria-labelledby="api">
+        <h2 id="api">4. 前后端 API 合同</h2>
+        <p>网关完整前缀：<code>/api/muyuan-slaughter-opms-frozen-cost-accounting</code>。成本服务 Controller 基础路径：<code>/frozen/monthly-cost</code>。</p>
+        <table>
+          <thead><tr><th>方法与路径</th><th>请求</th><th>响应/作用</th><th>当前状态</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /page</code></td><td><code>MonthlyCostQueryDTO</code></td><td>分页 <code>records/total/current/size/pages</code></td><td>页面主查询</td></tr>
+            <tr><td><code>POST /findThreeClasses</code></td><td><code>{batchMonth}</code></td><td>三级分类下拉</td><td>下拉</td></tr>
+            <tr><td><code>POST /findFourClasses</code></td><td><code>{batchMonth, thirdClassCode}</code></td><td>四级分类下拉</td><td>下拉</td></tr>
+            <tr><td><code>POST /spec-options</code></td><td><code>{batchMonth}</code></td><td><code>{code,name}[]</code></td><td>下拉</td></tr>
+            <tr><td><code>POST /edit</code></td><td><code>MonthlyCostEditRequestDTO</code></td><td>厂区或整体编辑</td><td>正式业务接口</td></tr>
+            <tr><td><code>POST /submit</code></td><td><code>{batchMonth}</code></td><td>整月快照并锁定</td><td>正式业务接口</td></tr>
+            <tr><td><code>POST /export</code></td><td><code>MonthlyCostQueryDTO</code></td><td>Controller 返回 void</td><td><strong>Service 仅日志，未生成文件</strong></td></tr>
+            <tr><td><code>POST /calc?batchMonth=</code></td><td>query 参数</td><td>同步运行完整计算</td><td><strong>联调临时，上线前删除注释仍存在</strong></td></tr>
+            <tr><td><code>GET /dailyCostDetail</code></td><td>三个 query 参数</td><td>厂区日成本和告警</td><td><strong>联调临时，直接访问 MongoTemplate</strong></td></tr>
+          </tbody>
+        </table>
+
+        <h3>4.1 分页 DTO 与 VO</h3>
+        <p><code>MonthlyCostQueryDTO</code>：<code>specCode/factoryCode/batchMonth/frozenAttribute/thirdClassCode/fourthClassCode/current/size</code>。<code>batchMonth</code> 空时后端默认上海时区上月；<code>frozenAttribute</code> 非法值被静默忽略；非正数/空 <code>current</code> 默认 1、<code>size</code> 默认 10。<strong><code>/page</code> 没有处理空 request body，<code>queryDTO == null</code> 会 NPE</strong>。结果按 <code>specCode ASC</code>，只查 <code>isDeleted=0</code> 的 saved 集合。</p>
+        <p>分页 VO 根层字段：<code>id, specCode, specName, batchMonth, 二/三/四级分类, productStatus, frozenAttribute, monthlyCost, originalCost, monthlyInWeight, freshMonthlyAvgPrice, editReason, dataStatus, dataStatusName, factories[], submitUser, submitTime, createTime, updateTime</code>。厂区项：<code>factoryCode, factoryName, monthlyCost, originalCost, monthlyInWeight, freshMonthlyAvgPrice, editReason, sourceConflictWarning, sourceConflictSummary, missingDailyCostWarning, missingDailyCostSummary</code>。<strong>日明细不随分页 VO 返回</strong>，只留在 saved 文档并可经临时 <code>/dailyCostDetail</code> 查询。</p>
+      </section>
+
+      <section aria-labelledby="backend">
+        <h2 id="backend">5. 成本服务实现</h2>
+
+        <h3>5.1 分层与调用关系</h3>
+        <pre><code class="language-text">FrozenMonthlyCostController
+  -> FrozenMonthlyCostServiceImpl
+       -> MonthlyCostValidator
+       -> MyMonthlyCostSavedRepository / MongoTemplate
+       -> MyMonthlyCostSubmittedRepository
+
+FrozenMonthlyCostCalcJob / 临时 calc Controller
+  -> FrozenMonthlyCostCalcHandler
+       -> 定值 submitted Mongo
+       -> 系数 submitted Mongo
+       -> MDM Feign：ZCO116D / BI / 鲜价
+       -> 产品主数据 Mapper
+       -> 月度 saved Repository</code></pre>
+
+        <h3>5.2 状态机</h3>
+        <figure>
+          <div class="diagram-shell">
+            <div id="state-machine" class="mermaid">
+stateDiagram-v2
+    [*] --> S0: 定时计算生成
+    S0: 0 SYSTEM_INITIAL 系统初算
+    S0 --> S1: 编辑成功
+    S1: 1 MANUALLY_EDITED 人工修改
+    S1 --> S2: 整月提交
+    S2: 2 SUBMITTED 已提交（禁止编辑）
+    S0 --> S2: 未编辑直接提交
+    note right of S0: 重算规则：新规格插入；\n状态 0 可覆盖；\n状态 1/2 跳过
+            </div>
+          </div>
+          <figcaption>问题：一条月度数据如何从生成走到锁定？——0 初算 → 1 人工修改 → 2 提交锁定</figcaption>
+        </figure>
+        <p>重算规则：新规格插入；已有状态 0 可覆盖；状态 1/2 跳过，避免覆盖人工修改或已提交数据。状态 2 禁止编辑并被提交锁定。</p>
+
+        <h3>5.3 单厂编辑</h3>
+        <p>核心步骤：检查规格、月份、成本必填 → 按 <code>specCode + batchMonth + isDeleted=0</code> 查 saved → 检查未提交、免冻品 → 原因 trim 后必填、成本 <code>HALF_UP</code> 两位 → 找目标厂区 → 校验不低于厂区 <code>originalCost</code> → 校验厂区鲜价五档 → 内存替换目标厂区，重算根层成本/重量/鲜价 → 原子更新目标数组元素及根层字段，状态改为 1。</p>
+        <p>Repository 条件：规格、月份、未删除、状态不为 2、厂区存在。<strong>单厂更新没有 <code>expectedUpdateTime</code> 条件</strong>。</p>
+
+        <h3>5.4 整体编辑与根层汇总</h3>
+        <p>不传 <code>factoryCode</code> 时：把相同成本和原因写入每个厂区；对每个厂区执行初算下限和鲜价五档校验；重算根层；用 <code>updateTime == expectedUpdateTime</code> 作为乐观锁，整体替换 factories；状态变为 1。厂区聚合到根层：有正 <code>monthlyInWeight</code> 时按厂区月入库量加权；所有厂区无正重量时对非空厂区值做算术平均；金额保留两位 <code>HALF_UP</code>；根层 <code>originalCost</code> 是系统初算快照，人工编辑不覆盖。</p>
+
+        <h3>5.5 整月提交与事务</h3>
+        <p><code>@Transactional(rollbackFor=Exception.class)</code>：按月份查全部有效 saved → 拒绝空月、已提交、非法状态、无厂区数据 → 根层和每个厂区复验成本非空、初算非空、不得低于初算 → <strong>不复验鲜价差</strong>（系统初算可能天然超阈）→ submitted 若该月已有快照则拒绝 → 每条 saved 转为 submitted 快照并插入 → 批量把该月 saved 的状态 0/1 更新为 2 → 实际锁定数不等于预期数则抛异常，使整月回滚。</p>
+        <p>Mongo 事务管理器在 <code>*-start</code> 配置类注册。<strong>MongoDB 必须是副本集或支持事务的分片集群；standalone Mongo 无法提供该事务语义</strong>。</p>
+
+        <h3>5.6 服务端授权现状</h3>
+        <blockquote>Service 注释明确写着角色、2 日 07:00 和仅上月均由前端负责；<code>MonthlyCostValidator.assertEditableDay/assertPreviousMonth</code> 已废弃且为空操作。Controller/Service 当前<strong>没有</strong>月度业务角色和时间窗强校验。能通过平台基础认证直接调用接口的主体可绕过页面按钮调用 <code>/edit</code>、<code>/submit</code>、<code>/calc</code> 和 <code>/dailyCostDetail</code>。这是当前实现事实，不应在复现时误认为前端权限已形成安全边界。</blockquote>
+      </section>
+
+      <section aria-labelledby="calc">
+        <h2 id="calc">6. 月度自动计算</h2>
+
+        <h3>6.1 调度入口</h3>
+        <p>Handler 名 <code>frozenMonthlyCostCalcJob</code>；注释 Cron <code>0 0 7 2 * ?</code>；业务时区 <code>Asia/Shanghai</code>；默认计算上月；XXL-JOB 参数非空时覆盖月份，可用于历史重跑；异常返回 <code>ReturnT.FAIL</code>。<strong>Cron 只存在于代码注释，真正调度必须在 XXL-JOB 管理端配置</strong>（环境待确认）。</p>
+
+        <h3>6.2 日成本来源与优先级</h3>
+        <figure>
+          <div class="diagram-shell">
+            <div id="source-merge" class="mermaid">
+flowchart TD
+    A["同一天 + 同规格 + 同厂区"] --> B{"多来源冲突？"}
+    B -->|"同源重复"| C["整月计算失败"]
+    B -->|"跨源冲突"| D["CUSTOM &gt; FIXED &gt; COEFFICIENT<br/>选赢家"]
+    B -->|"单来源"| E["直接采用"]
+    D --> F["冲突信息写入 DailyCostItem<br/>sourceConflict / conflictSources"]
+    E --> F
+    C --> G["厂区写摘要告警"]
+            </div>
+          </div>
+          <figcaption>问题：三种日成本来源冲突时怎么办？——定值 FIXED、系数 COEFFICIENT、SAP 定制品 CUSTOM，后者胜出</figcaption>
+        </figure>
+        <table>
+          <thead><tr><th>来源</th><th>数据</th><th>来源标记</th></tr></thead>
+          <tbody>
+            <tr><td>定值成本 submitted</td><td><code>fixedCost</code></td><td><code>FIXED</code></td></tr>
+            <tr><td>系数成本 submitted</td><td><code>cost</code></td><td><code>COEFFICIENT</code></td></tr>
+            <tr><td>MDM ZCO116D</td><td><code>inWahseCost</code></td><td><code>CUSTOM</code></td></tr>
+          </tbody>
+        </table>
+        <p>定制品接口按自然月逐日调用 28 至 31 次，只接纳规格编码以 <code>2</code> 或 <code>4</code> 开头的记录。根目录《定制品日度成本批量查询改造方案》尚未落地。</p>
+
+        <h3>6.3 厂区月成本公式</h3>
+        <pre><code class="language-text">起始日 = 本月首个存在有效日成本的日期
+扫描区间 = 起始日 .. 月末
+
+若存在"日成本非空 且 日入库量 > 0"的日期：
+  月成本 = Σ(日成本 × 日正入库量) / Σ(日正入库量)
+  monthlyInWeight = 实际参与公式的正入库量之和
+
+若没有任何正权重日期，但存在有效日成本：
+  月成本 = 有效日成本的算术平均
+  monthlyInWeight = 0
+
+结果 = HALF_UP 保留 2 位</code></pre>
+        <p>若某日有正入库量但缺日成本，该日重量被排除并写 <code>missingDailyCostWarning</code>。首个成本日之前的重量完全不扫描。因此文档中的 <code>monthlyInWeight</code> 不是 BI 全月净入库总量，而是成功参与计算的正重量。</p>
+
+        <h3>6.4 根层公式与产品主数据</h3>
+        <pre><code class="language-text">根层月成本 = Σ(厂区月成本 × 厂区参与重量) / Σ(厂区参与重量)
+根层鲜价   = Σ(厂区鲜价 × 厂区参与重量) / Σ(厂区参与重量)
+若全厂区无正重量，则分别对非空厂区月成本、鲜价做算术平均。
+根层 originalCost 保存系统初算结果；monthlyCost 初始等于它。</code></pre>
+        <p>成本服务从 MySQL 产品主数据补充名称、二/三/四级分类和状态。规格要求产品启用、分类有效且 <code>one_class_code='11'</code>。冻品属性映射：<code>frozen_property == 1 → 免冻品</code>；其余值和缺失 → <code>非免冻品</code>。只有免冻品允许人工编辑。</p>
+      </section>
+
+      <section aria-labelledby="mdm">
+        <h2 id="mdm">7. MDM 三类数据接口</h2>
+
+        <h3>7.1 BI 日入库重量</h3>
+        <p>调用链：成本 Feign <code>POST /api/frozen/bi-inbound-weight/query</code> → <code>BiInboundWeightController</code> → Service → <code>@DS(MYRS_BIGDATA)</code> Mapper → Hologres。请求 <code>{batchMonth, startDate, endDate}</code>；Service 手工校验非空、严格日期格式、起止顺序，并要求范围完整覆盖 batchMonth 的自然月。响应项 <code>inboundDate, specCode, factoryCode, netWeightKg</code>（kg）。数据表 <code>rs_ads.ads_yy_bi_sale_froze_rcpt_detail_di</code>，粒度日期 + 产品 + 厂区，查询范围 <code>[startDate, endDate + 1 day)</code>。</p>
+        <blockquote>当前聚合是 <code>MAX(sum_out_in_wahse_wgt) AS netWeightKg</code>，<strong>不是 SUM</strong>。这一口径假设源字段是重复快照而非可累加明细。SQL 不过滤零/负值；计算消费者只使用 <code>&gt; 0</code> 的重量。BI 调用异常、失败响应、空必填字段会使整月计算失败。</blockquote>
+
+        <h3>7.2 鲜品自然月均价</h3>
+        <p>调用链：<code>POST /api/frozen/fresh-monthly-price/query</code>，请求 <code>{"batchMonth":"2026-06"}</code>，响应 <code>batchMonth, comCode, prodCode, monthlyAvgPrice</code>（元/kg）。数据表 <code>rs_ads.ads_hs_api_gas_prc_di</code>，范围 <code>[月初, 下月月初)</code>。公式：<code>SUM(inv_pre * factory_product_weight) / NULLIF(SUM(factory_product_weight), 0)</code>；SQL 过滤价格非空、重量非空且大于 0、厂区/产品编码非空。<strong>鲜价调用失败不会阻断月成本计算</strong>，而是降级为空映射；结果仍可落库，但后续编辑会因鲜价为空而跳过价差规则。</p>
+
+        <h3>7.3 SAP ZCO116D 定制品日成本</h3>
+        <p>该接口不直接调用 SAP，而是查询已同步到 Hologres 的表：<code>POST /api/frozen/sap-zco116d/query?batchDate=...&amp;specCode=可选</code>。响应 <code>dt, prodCode, prodName, comShortName, inWahseCost</code>。数据表 <code>rs_ads.ads_hs_api_froze_pos_co116d_df</code>，有效期条件 <code>lock_start_date &lt;= batchDate AND lock_end_date &gt;= batchDate</code>；可选规格条件是 <code>prod_code LIKE '%specCode%'</code>。<strong>SQL 无聚合、无去重</strong>；若有效期重叠导致同源重复，消费者会判整月失败。<code>comShortName</code> 在成本服务通过精确名称映射到十厂编码，不 trim、无别名；无法映射即整月失败。BI <code>factoryCode</code> 和鲜价 <code>comCode</code> 则被直接假定已经是同一标准编码域。</p>
+
+        <h3>7.4 MDM 数据源</h3>
+        <p>三个 Mapper 都通过 <code>@DS(MyDataSourceConstant.MYRS_BIGDATA)</code> 使用常量值 <code>myrs_bigdata_dev</code>。生产也必须注册该逻辑数据源键，或在部署前修改命名（环境待确认）；需要在 Nacos/启动配置提供 JDBC URL、驱动、账号、密码、连接池参数，并授予三个 <code>rs_ads</code> 表 SELECT 权限。</p>
+      </section>
+
+      <section aria-labelledby="mongo">
+        <h2 id="mongo">8. MongoDB 数据模型</h2>
+
+        <h3>8.1 saved 集合</h3>
+        <p>集合 <code>my_frozen_monthly_cost_saved</code>。根字段：<code>_id</code>（Long 雪花 ID）、<code>specCode/specName/batchMonth</code>、二/三/四级分类、<code>productStatus/frozenAttribute</code>、<code>monthlyCost/originalCost/monthlyInWeight/freshMonthlyAvgPrice</code>、<code>editReason/dataStatus</code>、<code>factories[]</code>、<code>submitUser/submitTime</code>、<code>createTime/updateTime/createUser/updateUser/isDeleted</code>。</p>
+        <p>厂区字段：<code>factoryCode/factoryName</code>、四个金额字段、<code>editReason</code>、<code>dailyCosts[]</code>、<code>sourceConflictWarning/sourceConflictSummary</code>、<code>missingDailyCostWarning/missingDailyCostSummary</code>、<code>updateUser/updateTime</code>。日字段：<code>date, dailyCost, dailyInWeight, sourceType(FIXED/COEFFICIENT/CUSTOM), sourceConflict, conflictSources, missingDailyCost</code>。</p>
+
+        <h3>8.2 submitted 集合与索引</h3>
+        <p>集合 <code>my_frozen_monthly_cost_submitted</code>：根字段与 saved 的业务快照大致一致，<code>dataStatus</code> 固定 2，但厂区项不保存 <code>dailyCosts</code> 和冲突/缺日成本告警，<strong>提交后的日级追溯能力弱于 saved</strong>。两个集合都要求部分唯一索引：<code>{specCode: 1, batchMonth: 1}</code>，<code>unique: true</code>，<code>partialFilterExpression: {isDeleted: 0}</code>。saved 还应有 <code>batchMonth</code>、<code>factories.factoryCode</code>、<code>frozenAttribute</code> 索引。</p>
+
+        <h3>8.3 迁移顺序</h3>
+        <p>全新数据库：执行 <code>mongodb_collections_init.js</code> 创建集合和索引，再以 revision3 validator 为最终口径。已有旧集合：备份后按现网版本评估并执行 revision2、revision3。revision2：submitted 允许且要求状态 2；补 <code>threeClass* → thirdClass*</code>。revision3：属性改为字符串 <code>frozenAttribute</code>，允许金额存在 decimal/double/int/long/null，迁移 <code>frozenProperty</code> 和三级命名。</p>
+        <p><strong>两份 revision 当前在本地 Git 状态中是未跟踪文件</strong>，无法由代码证明已在任何环境执行。初始脚本的 <code>dailyCost</code> validator 只允许 decimal，而当前实现可能为缺成本日写 null；最终应以 revision3 和实际运行数据验证 validator 是否兼容。</p>
+      </section>
+
+      <section aria-labelledby="reproduce">
+        <h2 id="reproduce">9. 从零复现</h2>
+
+        <h3>9.1 两种复现目标</h3>
+        <p><strong>最小界面/合同复现</strong>：用 Mock 数据或本地替身实现 <code>/page</code>、下拉、<code>/edit</code>、<code>/submit</code>，即可复现页面交互、动态列、草稿和状态机。<strong>业务等价完整复现</strong>：必须部署三个工程并提供 Mongo/MySQL/Hologres/Nacos/Feign/XXL-JOB/网关认证，才能复现真实月度计算。</p>
+
+        <h3>9.2 环境准备与初始化</h3>
+        <ol>
+          <li>JDK 8、Maven 3.8+，能访问企业 Maven 私服；</li>
+          <li>Node.js 与 Yarn/NPM，版本需兼容 Vue 2 和当前 lockfile；</li>
+          <li>MongoDB 副本集，创建业务数据库和账号；</li>
+          <li>MySQL 产品主数据及对应查询权限；</li>
+          <li>Hologres 数据源，包含三张 <code>rs_ads</code> 表；</li>
+          <li>Nacos 中注册两个应用和配置数据源、Mongo、Feign、网关相关参数；</li>
+          <li>XXL-JOB 管理端注册执行器和 Handler；</li>
+          <li>网关把 <code>/api/muyuan-slaughter-opms-frozen-cost-accounting/**</code> 路由到成本服务。</li>
+        </ol>
+        <p>Mongo 初始化（先备份，不要在未知现网库上直接执行）：</p>
+        <pre><code class="language-bash">mongosh "&lt;mongo-uri&gt;/&lt;database&gt;" doc/sql/mongodb_collections_init.js
+mongosh "&lt;mongo-uri&gt;/&lt;database&gt;" doc/sql/mongodb_monthly_cost_revision3_migration.js</code></pre>
+        <pre><code class="language-javascript">db.my_frozen_monthly_cost_saved.getIndexes()
+db.my_frozen_monthly_cost_submitted.getIndexes()
+db.getCollectionInfos({name: "my_frozen_monthly_cost_saved"})</code></pre>
+
+        <h3>9.3 启动 MDM 与成本服务</h3>
+        <pre><code class="language-bash">cd muyuan-slaughter-mdm-opms
+mvn clean package -DskipTests
+java -jar muyuan-slaughter-mdm-opms-start/target/&lt;实际jar名&gt;.jar --spring.profiles.active=dev</code></pre>
+        <pre><code class="language-bash">cd muyuan-slaughter-opms-frozen-cost-accounting
+mvn clean package -DskipTests
+java -jar muyuan-slaughter-opms-frozen-cost-accounting-start/target/&lt;实际jar名&gt;.jar \
+  --spring.profiles.active=dev --server.port=8081</code></pre>
+        <p><strong>MDM 与成本服务不能在同一主机都直接占用 8080</strong>（两个 Dockerfile 声明的 <code>EXPOSE 8201</code> 与 YAML 8080 不一致，端口映射必须显式确认）。验证三个接口：BI 完整自然月、鲜价月份、ZCO116D 某一天，确认响应外层 <code>R</code> 的 <code>success/code/data/msg</code> 符合成本服务 Feign 预期。</p>
+
+        <h3>9.4 配置 XXL-JOB 与启动前端</h3>
+        <pre><code class="language-text">JobHandler: frozenMonthlyCostCalcJob
+Cron:       0 0 7 2 * ?
+时区:       Asia/Shanghai（同时确认调度平台/JVM 时区）
+参数:       默认空；历史重跑时传 yyyy-MM</code></pre>
+        <p>先在测试数据上用任务参数运行一个月份，验证 saved 记录、权重、告警和幂等重跑。前端 <code>postinstall</code> 会执行 <code>git init</code> 和 Git 配置修改，<strong>受控环境应审查后再安装</strong>：<code>yarn install</code> → <code>yarn dev</code>（或 <code>yarn build:dev/test/prod</code>）。登录平台后访问 <code>/monthlyCost/index</code>。本地开发代理默认指向远程开发网关而不是本地 8081；要联本地服务，需要把代理 target 改为本地网关/服务，或另建不提交的代理覆盖。</p>
+
+        <h3>9.5 最小验收数据与端到端顺序</h3>
+        <p>至少准备：一个正常启用、一级分类 11 的规格；<code>frozen_property=1</code>（测试编辑）；一个厂区一个月内至少两天日成本；对应日期 BI 正入库重量；对应规格/厂区鲜品月均价；一个跨源冲突样本；一个正重量但缺日成本样本；一个无正重量但有日成本样本（验证算术平均回退）。</p>
+        <ol>
+          <li>触发月度计算，确认状态 0 saved 产生；</li>
+          <li><code>/page</code> 查询，确认分类、属性、根层和 factories；</li>
+          <li>页面选择厂区，确认只改变列、不改变总记录；</li>
+          <li>编辑单厂，确认弹窗确认后仅出现"待保存"，Mongo 未改变；</li>
+          <li>点击保存，确认状态变 1、厂区和根层同步更新；</li>
+          <li>创建整体草稿后再创建某厂区草稿，验证 LWW 和保存顺序；</li>
+          <li>用低于初算或超鲜价阈值的成本，确认前后端都拒绝；</li>
+          <li>提交整月，确认 submitted 快照数等于 saved 数且 saved 全变 2；</li>
+          <li>再编辑、再提交、再重算，确认已提交记录不被修改；</li>
+          <li>验证 XXL-JOB 失败时页面当前仍可能只显示空数据，而没有真实就绪状态。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="testing">
+        <h2 id="testing">10. 测试与验证现状</h2>
+        <table>
+          <thead><tr><th>工程</th><th>现状</th><th>缺口</th></tr></thead>
+          <tbody>
+            <tr><td>前端</td><td><code>monthlyCost.spec.js</code> 约 1996 行，覆盖时间、权限、透视、草稿、保存、提交、计算、查询和分类联动</td><td>测试与组件已有漂移（对已删除方法的断言、<code>formatFactoryCost()</code> 期望数值但当前返回一位小数字符串等）；测试目录未跟踪，不能视为稳定 CI 基线</td></tr>
+            <tr><td>成本服务</td><td>本地 Surefire 报告曾显示 <code>FrozenMonthlyCostCalcHandlerTest</code> 14 项通过</td><td>部分测试文件不在 Git 基线，报告生成没有重新运行 Maven 测试；仍缺 Mongo 真实事务、唯一索引冲突、并发单厂编辑、Feign 真实合同、Controller 授权和整月端到端测试</td></tr>
+            <tr><td>MDM</td><td>BI/鲜价 JDBC 类和 schema diagnostic 是手工 <code>main</code> 诊断工具</td><td>不是自动化 JUnit/MockMvc/集成测试，<code>src/test</code> 未跟踪；三个 Provider 缺自动化集成测试</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="tech-points">
+        <h2 id="tech-points">11. 全部技术点汇总</h2>
+        <h3>11.1 前端技术点（17 项）</h3>
+        <ol>
+          <li>Vue 2 单文件组件与父子 tab 条件挂载；</li>
+          <li>Vue Router 静态 URL 到 tab 的映射；</li>
+          <li>Vuex getter 获取登录用户角色；</li>
+          <li>Element UI 月选择、级联下拉、动态表格、Dialog/Form、分页和消息确认；</li>
+          <li>动态列与具名动态 slot；</li>
+          <li><code>factories[] → row[factoryCode]</code> 前端数据透视；</li>
+          <li><code>tableKey</code> 强制重建与 <code>el-table.doLayout()</code>；</li>
+          <li>竞态请求序列号，丢弃过期响应；</li>
+          <li>本地下拉模糊搜索及规格名称 value 复用编码；</li>
+          <li>内存草稿、复合键、LWW、分组串行保存和部分成功恢复；</li>
+          <li>页面离开/切月/重置/beforeunload 草稿保护；</li>
+          <li>金额输入清洗、正则校验、初算下限与鲜价五档校验；</li>
+          <li>浏览器时间窗口与每分钟状态刷新；</li>
+          <li>Axios 请求封装、拦截器、Bearer token、统一错误和 NProgress；</li>
+          <li>Rsbuild/Rspack + Babel + Sass + Vue2 plugin；</li>
+          <li>CDN externals 与开发 <code>/api</code> 代理；</li>
+          <li>Jest + Vue Test Utils 组件测试。</li>
+        </ol>
+        <h3>11.2 后端技术点（23 项）</h3>
+        <ol>
+          <li>Java 8、Spring Boot/Spring MVC、REST Controller；</li>
+          <li>多模块 Maven 与企业 BOM/平台 starter；</li>
+          <li>Swagger DTO/VO 文档；</li>
+          <li>统一 <code>R</code> 响应封装；</li>
+          <li>Spring Data MongoDB、MongoTemplate、嵌套数组位置更新；</li>
+          <li>Mongo 双集合 saved/submitted 与快照模式；</li>
+          <li>Mongo JSON Schema validator、部分唯一索引、逻辑删除；</li>
+          <li>雪花算法 Long 主键；</li>
+          <li>MongoTransactionManager 与整月事务；</li>
+          <li>状态机 0/1/2、CAS 条件更新和乐观锁；</li>
+          <li><code>BigDecimal</code>、<code>HALF_UP</code> 两位金额精度；</li>
+          <li>日成本多源合并、来源优先级和冲突告警；</li>
+          <li>日重量加权平均、无权重算术平均回退；</li>
+          <li>厂区到根层二次加权聚合；</li>
+          <li>Feign 微服务调用与差异化失败策略；</li>
+          <li>MyBatis/MyBatis-Plus 产品主数据查询；</li>
+          <li>Dynamic Datasource <code>@DS</code> 路由；</li>
+          <li>Hologres/PostgreSQL 日期范围、分组、MAX、加权 SQL、NULLIF；</li>
+          <li>Nacos 配置与服务发现；</li>
+          <li>XXL-JOB Handler、Cron 和参数化历史重跑；</li>
+          <li>Asia/Shanghai 业务时区；</li>
+          <li>Undertow 线程与缓冲配置；</li>
+          <li>逻辑数据源、网关、认证和企业平台依赖。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="risks">
+        <h2 id="risks">12. 当前实现风险与复现注意事项</h2>
+        <table>
+          <thead><tr><th>级别</th><th>现状</th><th>影响</th></tr></thead>
+          <tbody>
+            <tr><td>严重</td><td>服务端未校验"冻品运营负责人"、上月和时间窗</td><td>可绕过前端直接编辑、提交、重算、查明细</td></tr>
+            <tr><td>严重</td><td>单厂更新无 <code>expectedUpdateTime</code> CAS</td><td>并发编辑不同厂区时，厂区值可能正确但根层汇总被旧快照覆盖</td></tr>
+            <tr><td>高</td><td>前端窗口写成 <code>day===2 &amp;&amp; hour&gt;=7</code></td><td>实际仅 2 日当天开放，不是 2 日后持续开放</td></tr>
+            <tr><td>高</td><td>前端使用浏览器时区</td><td>非东八区用户状态不同于 Job 的上海时区</td></tr>
+            <tr><td>高</td><td>没有计算就绪元数据</td><td>Job 延迟/失败可能表现为空数据或错误"已就绪"</td></tr>
+            <tr><td>高</td><td>Mongo 事务依赖副本集和迁移实际执行</td><td>环境不满足时整月提交原子性不成立</td></tr>
+            <tr><td>高</td><td><code>/calc</code>、<code>/dailyCostDetail</code> 临时接口仍在</td><td>重计算占 Web 线程，且暴露内部日级数据</td></tr>
+            <tr><td>高</td><td><code>/export</code> 是空实现</td><td>前端 API 声明 blob，但后端不会生成文件</td></tr>
+            <tr><td>高</td><td>定制品按天 Feign 28-31 次</td><td>慢、易受单日调用失败影响，批量方案未落地</td></tr>
+            <tr><td>中</td><td>鲜价失败静默降级</td><td>计算继续，但编辑价差保护被跳过</td></tr>
+            <tr><td>中</td><td>submitted 不存 dailyCosts/告警</td><td>提交后审计追溯信息变少</td></tr>
+            <tr><td>中</td><td>页内切换 monthly tab 草稿保护不可靠</td><td>未保存修改可能丢失</td></tr>
+            <tr><td>中</td><td>输入清洗把 <code>-10</code> 变成 <code>10</code></td><td>用户负号输入被改变而不是明确拒绝</td></tr>
+            <tr><td>中</td><td>BI 使用 MAX 而非 SUM</td><td>依赖源数据为重复快照的业务假设</td></tr>
+            <tr><td>中</td><td>数据源键硬编码 <code>myrs_bigdata_dev</code></td><td>生产配置可能误路由</td></tr>
+            <tr><td>中</td><td>配置/手工测试中发现明文凭据</td><td>应立即轮换并迁移到秘密管理；本文未复述值</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="navigation">
+        <h2 id="navigation">13. 关键代码导航</h2>
+        <table>
+          <thead><tr><th>目标</th><th>文件与位置</th></tr></thead>
+          <tbody>
+            <tr><td>页面全部行为</td><td><code>my-a-soa-front-slaughter-opms/src/views/slaughter-opms/frozenManagement/monthlyCost/index.vue:1</code></td></tr>
+            <tr><td>页面 API</td><td><code>my-a-soa-front-slaughter-opms/src/api/slaughter-opms/frozenManagement/monthlyCost.js:1</code></td></tr>
+            <tr><td>父 tab/URL 映射</td><td><code>my-a-soa-front-slaughter-opms/src/views/slaughter-opms/frozenManagement/frozenCostAccounting.vue:27</code>、<code>:142</code></td></tr>
+            <tr><td>Axios 拦截器</td><td><code>my-a-soa-front-slaughter-opms/src/router/axios.js:37</code></td></tr>
+            <tr><td>Controller</td><td><code>...-service/src/main/java/.../controller/FrozenMonthlyCostController.java:39</code></td></tr>
+            <tr><td>查询/编辑/提交</td><td><code>...-service/src/main/java/.../service/impl/FrozenMonthlyCostServiceImpl.java:66</code></td></tr>
+            <tr><td>业务校验</td><td><code>...-service/src/main/java/.../validator/MonthlyCostValidator.java:21</code></td></tr>
+            <tr><td>月度计算</td><td><code>...-service/src/main/java/.../handler/FrozenMonthlyCostCalcHandler.java:104</code></td></tr>
+            <tr><td>定时任务</td><td><code>...-job/src/main/java/.../FrozenMonthlyCostCalcJob.java:14</code></td></tr>
+            <tr><td>saved 模型</td><td><code>...-dal/src/main/java/.../document/MonthlyCostSavedDoc.java:17</code></td></tr>
+            <tr><td>submitted 模型</td><td><code>...-dal/src/main/java/.../document/MonthlyCostSubmittedDoc.java:20</code></td></tr>
+            <tr><td>saved 原子更新</td><td><code>...-dal/src/main/java/.../repository/MyMonthlyCostSavedRepository.java:74</code></td></tr>
+            <tr><td>Mongo 初始化</td><td><code>muyuan-slaughter-opms-frozen-cost-accounting/doc/sql/mongodb_collections_init.js:891</code></td></tr>
+            <tr><td>Mongo revision3</td><td><code>muyuan-slaughter-opms-frozen-cost-accounting/doc/sql/mongodb_monthly_cost_revision3_migration.js:1</code></td></tr>
+            <tr><td>BI SQL</td><td><code>muyuan-slaughter-mdm-opms/muyuan-slaughter-mdm-opms-dal/src/main/resources/mapper/bi/BiInboundWeightMapper.xml:5</code></td></tr>
+            <tr><td>鲜价 SQL</td><td><code>muyuan-slaughter-mdm-opms/muyuan-slaughter-mdm-opms-dal/src/main/resources/mapper/fresh/FreshMonthlyPriceMapper.xml:5</code></td></tr>
+            <tr><td>ZCO116D SQL</td><td><code>muyuan-slaughter-mdm-opms/muyuan-slaughter-mdm-opms-dal/src/main/resources/mapper/frozen/SapZco116dMapper.xml:6</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">14. 最终记忆主线</h2>
+        <blockquote>一句主线：三源日成本 + BI 日重量 + 鲜品月均价 + 产品主数据 → 定时计算厂区/根层月成本 → Mongo saved → Vue 动态厂区表 → 免冻品人工调整 → submitted 整月快照。</blockquote>
+        <ol>
+          <li>页面"确认"只是内存草稿，"保存"才逐条调用 <code>/edit</code>；"提交"锁定整月。</li>
+          <li>月成本核心是正入库量加权，无正重量才做算术平均；跨源优先级为 <code>CUSTOM &gt; FIXED &gt; COEFFICIENT</code>。</li>
+          <li>当前服务端没有业务角色和时间窗保护，计算就绪、导出、批量定制品查询也尚未完成，复现时必须保留这些真实边界。</li>
+        </ol>
+        <p class="scope-note"><strong>时效边界：</strong>本报告基于 2026-07-27 的代码基线（三个工程各自的分支与提交号见第 1 章），描述的是"提交 + 本地工作区"的组合。无法由代码证明的网关、Nacos、数据库连接、XXL-JOB 配置均标注"环境待确认"；设计文档中尚未落地的方案（计算就绪元数据、真正导出、定制品批量查询）不作为现状。</p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis', nodeSpacing: 25, rankSpacing: 35 }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.querySelectorAll('.mermaid[data-fit="scroll"] svg').forEach(function (svg) {
+        var vb = svg.viewBox.baseVal;
+        if (vb && vb.width > 0) {
+          svg.style.setProperty('width', vb.width + 'px', 'important');
+          svg.style.setProperty('max-width', 'none', 'important');
+          svg.style.setProperty('height', 'auto', 'important');
+          svg.style.setProperty('flex-shrink', '0', 'important');
+        }
+      });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active;
+      if (atBottom) {
+        active = headings[headings.length - 1];
+      } else {
+        active = headings[0];
+        headings.forEach(function (heading) {
+          if (heading.offsetTop <= marker) active = heading;
+        });
+      }
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>
+

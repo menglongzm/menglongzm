@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyBatis-Plus 学习梳理</title>
+  <meta name="description" content="MyBatis-Plus 核心功能、继承模式与扩展能力的通用学习笔记">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      padding: 20px;
+    }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell .mermaid svg {
+      max-width: 100% !important;
+      height: auto;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#core">3. 核心知识</a></li>
+          <li><a href="#patterns">4. 两种 Mapper/Biz 模式</a></li>
+          <li><a href="#example">5. 贯穿示例</a></li>
+          <li><a href="#confusion">6. 易混概念</a></li>
+          <li><a href="#pitfalls">7. 常见误区与边界</a></li>
+          <li><a href="#cheatsheet">8. 速查</a></li>
+          <li><a href="#memory">9. 记忆主线</a></li>
+          <li><a href="#quiz">10. 自测问题</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>MyBatis-Plus 学习梳理</h1>
+      <p class="lead">本文解决：MyBatis-Plus 的核心功能是什么、各功能之间如何协作、以及单表与多表场景下如何选择继承模式。适合有 MyBatis 基础的 Java 开发者。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>MyBatis-Plus（简称 MP）是 MyBatis 的增强工具，核心宗旨是"只做增强不做改变"——在不破坏 MyBatis 原有能力的前提下，通过 BaseMapper、IService 和条件构造器消除单表 CRUD 的重复劳动。</p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>下图回答：MyBatis-Plus 有哪些核心组件，它们如何协作？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="architecture">
+flowchart TB
+    subgraph MP["MyBatis-Plus 增强层"]
+        BM["BaseMapper 17+ 通用CRUD"]
+        IS["IService / ServiceImpl 30+ 业务方法"]
+        QW["QueryWrapper 链式条件构造"]
+        AN["注解映射 @TableName @TableId @TableField"]
+    end
+    subgraph EX["扩展能力 拦截器+注解"]
+        DS["@DS 多数据源"]
+        PG["分页插件"]
+        LD["@TableLogic 逻辑删除"]
+        AF["自动填充"]
+        OL["@Version 乐观锁"]
+    end
+    subgraph MB["MyBatis 原生"]
+        IF["Mapper 接口"]
+        XML["XML 映射文件"]
+    end
+    AN --> BM
+    QW --> BM
+    BM --> IS
+    BM --> IF
+    IF --> XML
+            </div>
+          </div>
+          <figcaption>图 1：MyBatis-Plus 架构总览</figcaption>
+        </figure>
+        <p>MyBatis-Plus 在 MyBatis 之上增加了一层通用能力：BaseMapper 提供零 SQL 的单表 CRUD，IService 在其上封装批量操作和业务组合方法，条件构造器替代手写 WHERE 条件，注解完成 DO 与表的绑定。扩展能力（多数据源、分页、逻辑删除等）通过拦截器和注解实现，与核心层正交。</p>
+      </section>
+
+      <section aria-labelledby="core">
+        <h2 id="core">3. 核心知识</h2>
+
+        <h3 id="core-basemapper">3.1 BaseMapper — 通用 CRUD</h3>
+        <p><strong>是什么</strong>：MyBatis-Plus 提供的泛型 Mapper 接口，继承后自动获得 17 个原生 CRUD 方法，无需编写任何 XML。</p>
+        <p><strong>如何工作</strong>：MP 在启动时扫描 DO 上的 <code>@TableName</code> 和 <code>@TableId</code> 注解，构建 TableInfo，在运行时自动生成 SQL。</p>
+        <p><strong>边界</strong>：多表 JOIN、UNION 查询不支持，需手写 XML。</p>
+        <pre><code class="language-java">// Mapper 继承 BaseMapper 后，空接口已有 17 个方法
+public interface MySaleOrderStatusMapper extends BaseMapper&lt;MyOrderStatusDO&gt; {
+    // 空接口，selectById / insert / updateById / deleteById / selectList 等全部可用
+}
+
+// 使用 — 零 SQL
+mapper.selectById("DP001");              // SELECT * FROM my_sale_order WHERE order_no = 'DP001'
+mapper.insert(do);                        // INSERT INTO my_sale_order (order_no, status) VALUES (...)
+mapper.updateById(do);                    // UPDATE my_sale_order SET status = ? WHERE order_no = ?
+mapper.deleteById("DP001");              // DELETE FROM my_sale_order WHERE order_no = 'DP001'</code></pre>
+
+        <h3 id="core-service">3.2 IService / ServiceImpl — 业务层封装</h3>
+        <p><strong>是什么</strong>：在 BaseMapper 之上再封装 30+ 个 Service 级方法，解决 BaseMapper 无法直接处理的批量操作和业务组合操作。</p>
+        <p><strong>如何工作</strong>：<code>ServiceImpl&lt;M extends BaseMapper&lt;T&gt;, T&gt;</code> 持有 <code>baseMapper</code> 字段（即 Mapper 实例），在原生 CRUD 之上叠加 saveBatch、saveOrUpdate、page 等方法。</p>
+        <p><strong>边界</strong>：Mapper 必须继承 BaseMapper，否则 ServiceImpl 无法实例化。</p>
+        <pre><code class="language-java">@Service
+public class MySaleOrderStatusBiz extends ServiceImpl&lt;MySaleOrderStatusMapper, MyOrderStatusDO&gt; {
+
+    public void demo() {
+        // 批量插入 — BaseMapper 做不到
+        this.saveBatch(Arrays.asList(do1, do2, do3));
+
+        // 保存或更新 — 自动判断主键是否存在
+        this.saveOrUpdate(do);
+
+        // 链式 Lambda 查询 — 类型安全
+        List&lt;MyOrderStatusDO&gt; list = this.lambdaQuery()
+                .eq(MyOrderStatusDO::getOrderStatus, 1)
+                .like(MyOrderStatusDO::getOrderNo, "DP")
+                .list();
+
+        // 分页 — 一行搞定
+        IPage&lt;MyOrderStatusDO&gt; page = this.page(
+            new Page&lt;&gt;(1, 10),
+            new QueryWrapper&lt;MyOrderStatusDO&gt;().eq("status", 1)
+        );
+    }
+}</code></pre>
+
+        <h3 id="core-wrapper">3.3 条件构造器 — QueryWrapper / LambdaQueryWrapper</h3>
+        <p><strong>区别</strong>：<code>QueryWrapper</code> 使用字符串列名，<code>LambdaQueryWrapper</code> 使用方法引用（编译期类型安全）。</p>
+        <pre><code class="language-java">// QueryWrapper — 字符串列名
+QueryWrapper&lt;MyOrderStatusDO&gt; wrapper = new QueryWrapper&lt;&gt;();
+wrapper.eq("status", 1)
+       .like("order_no", "DP")
+       .ge("create_time", "2026-01-01")
+       .orderByDesc("create_time")
+       .last("LIMIT 10");
+
+// LambdaQueryWrapper — 类型安全，重构时列名自动跟随
+LambdaQueryWrapper&lt;MyOrderStatusDO&gt; lambda = new LambdaQueryWrapper&lt;&gt;();
+lambda.eq(MyOrderStatusDO::getOrderStatus, 1)
+      .like(MyOrderStatusDO::getOrderNo, "DP");</code></pre>
+        <table>
+          <thead><tr><th>方法</th><th>对应 SQL</th></tr></thead>
+          <tbody>
+            <tr><td><code>eq</code> / <code>ne</code></td><td><code>= 等于</code> / <code>&lt;&gt; 不等于</code></td></tr>
+            <tr><td><code>gt</code> / <code>ge</code></td><td><code>&gt; 大于</code> / <code>&gt;= 大于等于</code></td></tr>
+            <tr><td><code>lt</code> / <code>le</code></td><td><code>&lt; 小于</code> / <code>&lt;= 小于等于</code></td></tr>
+            <tr><td><code>like</code> / <code>notLike</code></td><td><code>LIKE '%xxx%'</code></td></tr>
+            <tr><td><code>likeLeft</code> / <code>likeRight</code></td><td><code>LIKE '%xxx'</code> / <code>LIKE 'xxx%'</code></td></tr>
+            <tr><td><code>in</code> / <code>notIn</code></td><td><code>IN (...)</code> / <code>NOT IN (...)</code></td></tr>
+            <tr><td><code>between</code></td><td><code>BETWEEN a AND b</code></td></tr>
+            <tr><td><code>groupBy</code> / <code>orderByDesc</code></td><td><code>GROUP BY</code> / <code>ORDER BY ... DESC</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="core-annotations">3.4 注解映射 — DO 与表的绑定</h3>
+        <table>
+          <thead><tr><th>注解</th><th>作用</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td><code>@TableName("表名")</code></td><td>指定 DO 对应的数据库表</td><td><code>@TableName("my_sale_order")</code></td></tr>
+            <tr><td><code>@TableId</code></td><td>指定主键字段和生成策略</td><td><code>@TableId(value="order_no", type=IdType.INPUT)</code></td></tr>
+            <tr><td><code>@TableField("列名")</code></td><td>指定普通字段映射</td><td><code>@TableField("status")</code></td></tr>
+            <tr><td><code>@TableField(exist = false)</code></td><td>标记非数据库字段</td><td>查询结果中的计算字段</td></tr>
+            <tr><td><code>@TableLogic</code></td><td>逻辑删除标记</td><td><code>@TableLogic private Integer deleted;</code></td></tr>
+            <tr><td><code>@Version</code></td><td>乐观锁版本号</td><td><code>@Version private Integer version;</code></td></tr>
+          </tbody>
+        </table>
+        <p><strong>IdType 主键生成策略</strong>：<code>AUTO</code>（数据库自增）、<code>INPUT</code>（用户手动输入）、<code>ASSIGN_ID</code>（雪花算法，默认）、<code>ASSIGN_UUID</code>（UUID 自动生成）。</p>
+
+        <h3 id="core-ds">3.5 多数据源 — @DS 动态切换</h3>
+        <p><strong>如何工作</strong>：底层基于 AOP，在方法执行前将数据源 key 写入 ThreadLocal，动态数据源路由器根据 key 选择对应的 DataSource。</p>
+        <pre><code class="language-java">// 类级别 — 整个 Mapper 走 sale_order_yun 数据源
+@DS("sale_order_yun")
+public interface MySaleOrderStatusMapper extends BaseMapper&lt;MyOrderStatusDO&gt; {}
+
+// 类级别 — 整个 Mapper 走 oms 数据源
+@DS("oms")
+public interface MyOmsOrderStatusMapper {}
+
+// 方法级别 — 单个方法切换
+public interface MyMapper {
+    @DS("oms")
+    List&lt;DO&gt; queryFromOms();
+
+    @DS("sale_order_yun")
+    List&lt;DO&gt; queryFromSaleOrder();
+}</code></pre>
+
+        <h3 id="core-page">3.6 分页插件</h3>
+        <p>配置拦截器后，<code>selectPage</code> 自动生成 <code>COUNT</code> + <code>LIMIT</code>：</p>
+        <pre><code class="language-java">@Configuration
+public class MybatisPlusConfig {
+    @Bean
+    public MybatisPlusInterceptor mybatisPlusInterceptor() {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        return interceptor;
+    }
+}
+
+// 使用
+Page&lt;MyOrderStatusDO&gt; page = new Page&lt;&gt;(1, 10);
+IPage&lt;MyOrderStatusDO&gt; result = mapper.selectPage(page, wrapper);
+result.getRecords();   // 当前页数据
+result.getTotal();      // 总记录数
+result.getPages();      // 总页数</code></pre>
+
+        <h3 id="core-logic-delete">3.7 逻辑删除 — @TableLogic</h3>
+        <p>配置后，所有 <code>deleteById</code> / <code>delete</code> 自动变为 <code>UPDATE</code>：</p>
+        <pre><code class="language-java">@Data
+@TableName("my_order")
+public class MyOrderDO {
+    @TableId
+    private Long id;
+
+    @TableLogic          // 标记为逻辑删除字段
+    private Integer deleted;  // 0-未删除, 1-已删除
+}
+
+mapper.deleteById(1L);
+// 实际执行: UPDATE my_order SET deleted = 1 WHERE id = 1
+// 不是: DELETE FROM my_order WHERE id = 1
+
+mapper.selectList(null);
+// 自动追加: WHERE deleted = 0</code></pre>
+
+        <h3 id="core-auto-fill">3.8 自动填充 — MetaObjectHandler</h3>
+        <pre><code class="language-java">// DO 标记
+@TableField(fill = FieldFill.INSERT)
+private Date createTime;
+
+@TableField(fill = FieldFill.INSERT_UPDATE)
+private Date updateTime;
+
+// 实现填充处理器
+@Component
+public class MyMetaObjectHandler implements MetaObjectHandler {
+    @Override
+    public void insertFill(MetaObject metaObject) {
+        this.strictInsertFill(metaObject, "createTime", Date.class, new Date());
+        this.strictInsertFill(metaObject, "updateTime", Date.class, new Date());
+    }
+    @Override
+    public void updateFill(MetaObject metaObject) {
+        this.strictUpdateFill(metaObject, "updateTime", Date.class, new Date());
+    }
+}</code></pre>
+        <p>执行 <code>insert</code> / <code>update</code> 时自动填充时间，无需手动 set。</p>
+
+        <h3 id="core-optimistic-lock">3.9 乐观锁 — @Version</h3>
+        <pre><code class="language-java">@Version
+private Integer version;
+
+mapper.updateById(do);
+// 实际执行:
+// UPDATE my_order SET ..., version = version + 1
+// WHERE id = 1 AND version = 0</code></pre>
+      </section>
+
+      <section aria-labelledby="patterns">
+        <h2 id="patterns">4. 两种 Mapper/Biz 模式</h2>
+
+        <h3 id="patterns-class">4.1 继承层次关系</h3>
+        <p>下图回答：BaseMapper、ServiceImpl、Mapper 接口和 Biz 类之间的类型关系是什么？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="class-diagram">
+classDiagram
+    class BaseMapper~T~ {
+        +selectById(id) T
+        +insert(entity) int
+        +updateById(entity) int
+        +deleteById(id) int
+        +selectList(wrapper) List~T~
+    }
+    class ServiceImpl~M_T~ {
+        #baseMapper M
+        +saveBatch(list) boolean
+        +saveOrUpdate(entity) boolean
+        +page(page, wrapper) IPage~T~
+        +lambdaQuery() LambdaQueryChainWrapper~T~
+    }
+    class SingleTableMapper {
+        +selectByOrderNos(orderNos) List~DO~
+    }
+    class SingleTableBiz {
+        +selectByOrderNos(orderNos) List~DO~
+    }
+    class MultiTableMapper {
+        +selectDpOrderStatus(orderNos) List~DO~
+        +selectDlOrderStatus(orderNos) List~DO~
+    }
+    class MultiTableBiz {
+        -multiTableMapper MultiTableMapper
+        +selectDpOrderStatus(orderNos) List~DO~
+    }
+    BaseMapper <|-- SingleTableMapper : 继承
+    ServiceImpl <|-- SingleTableBiz : 继承
+    ServiceImpl --> BaseMapper : baseMapper字段
+    MultiTableBiz --> MultiTableMapper : 构造器注入
+            </div>
+          </div>
+          <figcaption>图 2：继承层次与类型关系</figcaption>
+        </figure>
+        <p>单表场景：Mapper 继承 BaseMapper，Biz 继承 ServiceImpl，通过 <code>baseMapper</code> 字段调用。多表场景：Mapper 是纯接口，Biz 通过构造器注入 Mapper，所有 SQL 手写 XML。</p>
+
+        <h3 id="patterns-decision">4.2 模式选择决策</h3>
+        <p>下图回答：什么场景下应该继承 BaseMapper/ServiceImpl，什么场景下不应该？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="decision-flow">
+flowchart TD
+    A["开始：需要查询数据"] --> B{"查询涉及几张表？"}
+    B -->|"单表"| C["DO 能通过 @TableName 正确映射？"]
+    C -->|"是"| D["继承 BaseMapper + ServiceImpl<br/>白嫖 17+30 个原生方法<br/>零 SQL 完成增删改查"]
+    C -->|"否"| E["修正 DO 注解<br/>或改用纯接口 + XML"]
+    B -->|"多表 JOIN/UNION"| F{"@TableName 能同时映射多张表？"}
+    F -->|"不能"| G["纯接口 Mapper + 构造器注入 Biz<br/>所有 SQL 手写 XML"]
+    D --> H["自定义方法 + XML<br/>补充原生方法不覆盖的场景"]
+    G --> H
+            </div>
+          </div>
+          <figcaption>图 3：模式选择决策流程</figcaption>
+        </figure>
+
+        <h3 id="patterns-compare">4.3 对比总结</h3>
+        <table>
+          <thead><tr><th>对比项</th><th>继承方式</th><th>非继承方式</th></tr></thead>
+          <tbody>
+            <tr><td>Mapper</td><td><code>extends BaseMapper&lt;DO&gt;</code></td><td>纯接口</td></tr>
+            <tr><td>Biz</td><td><code>extends ServiceImpl&lt;Mapper, DO&gt;</code></td><td>构造器注入 Mapper</td></tr>
+            <tr><td>调用方式</td><td><code>baseMapper.xxx()</code></td><td><code>this.myXxxMapper.xxx()</code></td></tr>
+            <tr><td>DO 要求</td><td>必须有 <code>@TableName</code> + <code>@TableId</code></td><td>不强制要求</td></tr>
+            <tr><td>原生 CRUD</td><td>17 个方法可用</td><td>不可用</td></tr>
+            <tr><td>IService 方法</td><td>30+ 个方法可用</td><td>不可用</td></tr>
+            <tr><td>适用场景</td><td>单表 CRUD</td><td>多表联合查询、复杂 SQL</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">5. 贯穿示例</h2>
+        <p>以一个订单状态查询功能为例，展示两种模式的实际应用：</p>
+        <pre><code class="language-java">// ========== 单表场景：试样订单（my_sale_order 表） ==========
+
+// DO — 绑定单表
+@Data
+@TableName("my_sale_order")
+public class MyOrderStatusDO {
+    @TableId(value = "order_no", type = IdType.INPUT)
+    private String orderNo;
+    @TableField("status")
+    private Integer orderStatus;
+}
+
+// Mapper — 继承 BaseMapper
+@DS("sale_order_yun")
+public interface MySaleOrderStatusMapper extends BaseMapper&lt;MyOrderStatusDO&gt; {
+    List&lt;MyOrderStatusDO&gt; selectStatusByOrderNos(@Param("orderNos") List&lt;String&gt; orderNos);
+}
+
+// Biz — 继承 ServiceImpl
+@Service
+public class MySaleOrderStatusBiz extends ServiceImpl&lt;MySaleOrderStatusMapper, MyOrderStatusDO&gt; {
+    public List&lt;MyOrderStatusDO&gt; selectStatusByOrderNos(List&lt;String&gt; orderNos) {
+        return baseMapper.selectStatusByOrderNos(orderNos);
+    }
+}
+
+// ========== 多表场景：OMS 订单（my_order_info + my_pre_order_info） ==========
+
+// Mapper — 纯接口，不继承 BaseMapper
+@DS("oms")
+public interface MyOmsOrderStatusMapper {
+    List&lt;MyOrderStatusDO&gt; selectDpOrderStatusByOrderNos(@Param("orderNos") List&lt;String&gt; orderNos);
+    List&lt;MyOrderStatusDO&gt; selectDlOrderStatusByOrderNos(@Param("orderNos") List&lt;String&gt; orderNos);
+}
+
+// Biz — 构造器注入
+@Service
+public class MyOmsOrderStatusBiz {
+    private final MyOmsOrderStatusMapper myOmsOrderStatusMapper;
+
+    public MyOmsOrderStatusBiz(MyOmsOrderStatusMapper myOmsOrderStatusMapper) {
+        this.myOmsOrderStatusMapper = myOmsOrderStatusMapper;
+    }
+
+    public List&lt;MyOrderStatusDO&gt; selectDpOrderStatusByOrderNos(List&lt;String&gt; orderNos) {
+        return myOmsOrderStatusMapper.selectDpOrderStatusByOrderNos(orderNos);
+    }
+}</code></pre>
+      </section>
+
+      <section aria-labelledby="confusion">
+        <h2 id="confusion">6. 易混概念</h2>
+        <table>
+          <thead><tr><th>概念 A</th><th>概念 B</th><th>核心区别</th><th>选择依据</th></tr></thead>
+          <tbody>
+            <tr><td>BaseMapper</td><td>ServiceImpl</td><td>BaseMapper 是 Mapper 层 17 个方法；ServiceImpl 是 Biz 层 30+ 方法，依赖 BaseMapper</td><td>Mapper 层用 BaseMapper，Biz 层用 ServiceImpl</td></tr>
+            <tr><td>QueryWrapper</td><td>LambdaQueryWrapper</td><td>字符串列名 vs 方法引用（编译期类型安全）</td><td>优先用 Lambda 版本</td></tr>
+            <tr><td>@TableName</td><td>@TableId</td><td>指定表名 vs 指定主键列和生成策略</td><td>两者配合使用</td></tr>
+            <tr><td>继承 BaseMapper</td><td>纯接口 Mapper</td><td>获得原生 CRUD（需 @TableName 正确映射单表）vs 只有自定义方法</td><td>单表用继承，多表用纯接口</td></tr>
+            <tr><td>逻辑删除 @TableLogic</td><td>物理删除</td><td>执行 UPDATE SET deleted=1 vs 执行 DELETE</td><td>需保留数据用逻辑删除</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="pitfalls">
+        <h2 id="pitfalls">7. 常见误区与边界</h2>
+        <p><strong>误区 1</strong>：多表查询的 Mapper 也可以继承 BaseMapper，反正只调自定义方法。<br>
+        <strong>正确理解</strong>：<code>@TableName</code> 只能指向一张表。如果继承 BaseMapper，原生方法（如 <code>selectById</code>）会用错误的表名生成 SQL，在错误的数据源上执行。多表查询必须用纯接口。</p>
+        <p><strong>误区 2</strong>：LambdaQueryWrapper 和 QueryWrapper 性能差异大。<br>
+        <strong>正确理解</strong>：两者生成的 SQL 完全相同，Lambda 版本仅在编译期做类型检查，运行时通过反射解析方法引用，性能差异可忽略。</p>
+        <p><strong>误区 3</strong>：@DS 注解可以加在 Biz 层方法上。<br>
+        <strong>正确理解</strong>：@DS 通过 AOP 拦截方法调用切换数据源，通常加在 Mapper 接口上。加在 Biz 层也可以生效，但会导致整个方法内所有 Mapper 调用都走同一数据源，可能影响同方法内其他数据源的查询。</p>
+        <p><strong>边界</strong>：BaseMapper 的 <code>insert</code> 方法默认只插入非 null 字段（<code>FieldStrategy.NOT_NULL</code>）。如果需要插入 null 值，需在 <code>@TableField</code> 上设置 <code>insertStrategy = FieldStrategy.IGNORED</code>。</p>
+      </section>
+
+      <section aria-labelledby="cheatsheet">
+        <h2 id="cheatsheet">8. 速查</h2>
+        <table>
+          <thead><tr><th>目标</th><th>做法</th><th>关键条件</th></tr></thead>
+          <tbody>
+            <tr><td>单表 CRUD 零 SQL</td><td>Mapper extends BaseMapper + Biz extends ServiceImpl</td><td>DO 有 @TableName + @TableId</td></tr>
+            <tr><td>多表查询</td><td>纯接口 Mapper + 构造器注入 Biz + 手写 XML</td><td>@TableName 无法映射多表</td></tr>
+            <tr><td>链式条件查询</td><td>LambdaQueryWrapper + 方法引用</td><td>编译期类型安全</td></tr>
+            <tr><td>动态切换数据源</td><td>@DS("数据源名") 加在 Mapper 类上</td><td>需配置 dynamic-datasource</td></tr>
+            <tr><td>物理分页</td><td>配置 PaginationInnerInterceptor + mapper.selectPage</td><td>需配置拦截器</td></tr>
+            <tr><td>逻辑删除</td><td>DO 字段加 @TableLogic</td><td>delete 自动变 UPDATE</td></tr>
+            <tr><td>自动填充时间</td><td>@TableField(fill=...) + 实现 MetaObjectHandler</td><td>需注册处理器 Bean</td></tr>
+            <tr><td>乐观锁并发控制</td><td>DO 字段加 @Version + 配置拦截器</td><td>updateById 自动追加版本条件</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">9. 记忆主线</h2>
+        <ol>
+          <li><strong>BaseMapper = 单表零 SQL</strong>：继承后 17 个方法可用，前提是 DO 有 <code>@TableName</code> + <code>@TableId</code>。</li>
+          <li><strong>ServiceImpl = Biz 层全家桶</strong>：在 BaseMapper 之上叠加 30+ 个方法（saveBatch、page、lambdaQuery），<code>baseMapper</code> 是父类提供的字段。</li>
+          <li><strong>单表继承，多表纯接口</strong>：<code>@TableName</code> 只能映射一张表，多表查询继承 BaseMapper 会导致原生方法查错表。</li>
+          <li><strong>LambdaQueryWrapper 优先</strong>：方法引用替代字符串列名，重构时自动跟随。</li>
+          <li><strong>@DS 切数据源</strong>：AOP + ThreadLocal 实现，加在 Mapper 类上最安全。</li>
+          <li><strong>拦截器模式</strong>：分页、逻辑删除、乐观锁都通过 InnerInterceptor 实现，与核心层正交。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="quiz">
+        <h2 id="quiz">10. 自测问题</h2>
+        <ol>
+          <li>BaseMapper 的 <code>selectById</code> 方法是如何知道查哪张表、用哪个列做主键的？</li>
+          <li>为什么多表查询的 Mapper 不应该继承 BaseMapper？如果继承了会发生什么？</li>
+          <li>ServiceImpl 中的 <code>baseMapper</code> 字段从哪里来？为什么不需要手动注入？</li>
+          <li><code>@TableField(exist = false)</code> 的作用是什么？什么场景下需要？</li>
+          <li>逻辑删除的 <code>@TableLogic</code> 如何让 <code>deleteById</code> 变成 <code>UPDATE</code>？查询时自动追加 <code>WHERE deleted = 0</code> 是怎么实现的？</li>
+          <li><code>@DS</code> 注解加在 Mapper 类上和加在 Biz 方法上有什么区别？</li>
+        </ol>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis' },
+        sequence: { useMaxWidth: true, actorMargin: 50 },
+        class: { useMaxWidth: true }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active = headings[0];
+      headings.forEach(function (heading) {
+        if (heading.offsetTop <= marker) active = heading;
+      });
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>
