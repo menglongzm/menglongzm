@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JWT 鉴权学习梳理</title>
+  <meta name="description" content="JWT 无状态鉴权核心原理：结构、生成、验签、Base64Url 编码与 HMAC-SHA256 签名">
+
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11.12.0/dist/mermaid.min.js"></script>
+
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+    .theme-toggle[disabled] { cursor: wait; opacity: 0.65; }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+    }
+
+    figure { margin: 24px 0 32px; }
+
+    .diagram-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      padding: 20px;
+    }
+
+    .mermaid {
+      display: flex;
+      min-height: 120px;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .diagram-shell .mermaid svg {
+      max-width: 100% !important;
+      height: auto;
+    }
+
+    figcaption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    .render-error {
+      padding: 16px;
+      color: #a32121;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    :root[data-theme="dark"] .render-error { color: #ff9d9d; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#core">3. 核心知识</a></li>
+          <li><a href="#example">4. 贯穿示例</a></li>
+          <li><a href="#confusion">5. 易混概念</a></li>
+          <li><a href="#pitfalls">6. 常见误区</a></li>
+          <li><a href="#cheatsheet">7. 速查</a></li>
+          <li><a href="#memory">8. 记忆主线</a></li>
+          <li><a href="#selftest">9. 自测问题</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>JWT 鉴权学习梳理</h1>
+      <p class="lead">本文梳理 JWT 无状态鉴权的核心原理：从 token 结构、生成、传输到验签的完整链路，以及 Base64Url 编码和 HMAC-SHA256 签名的输入输出。适合理解 HTTP 鉴权基础、想掌握 JWT 原理的读者。</p>
+      <p class="scope-note"><strong>范围：</strong>通用 JWT 鉴权原理为主，项目实现细节作为标注示例。外部依赖的生成端代码不在源码中，基于框架背景和使用方式推断。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>JWT 用一个自包含的签名字符串替代每次查库验证密码——密码只在登录时用一次，之后靠密钥签名信任 token，无需再查数据库即可确认身份。</p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>下图回答：从用户登录到业务请求成功，各组件按什么顺序交互？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="jwt-flow">
+sequenceDiagram
+    participant F as 前端
+    participant A as 认证服务
+    participant G as 网关
+    participant B as 业务服务
+
+    Note over F,A: 登录阶段（一次性）
+    F->>A: POST /oauth/token (username + MD5(password))
+    Note right of A: 验证密码 → 查用户信息
+    Note right of A: 构建Claims → Jwts.builder()
+    Note right of A: .signWith(HS256, secretKey).compact()
+    A-->>F: access_token(JWT) + refresh_token
+    Note over F: 存 Cookie / localStorage
+
+    Note over F,B: 业务请求阶段（每次）
+    F->>G: GET /api/xxx (Muyuan-Auth: bearer JWT)
+    Note right of G: 1.分割三段
+    Note right of G: 2.重算HMAC → 比对签名
+    Note right of G: 3.检查exp过期
+    Note right of G: 4.(可选)Redis状态校验
+    alt 验签通过
+        G->>B: 放行请求
+        B-->>G: 业务响应
+        G-->>F: 200 响应
+    else 验签失败
+        G-->>F: 401 拒绝
+    end
+            </div>
+          </div>
+          <figcaption>图 1：JWT 全流程时序</figcaption>
+        </figure>
+        <p>图未展开验证码校验、refresh_token 刷新和服务间 SSO 等辅助流程，这些在后文按需补充。</p>
+      </section>
+
+      <section aria-labelledby="core">
+        <h2 id="core">3. 核心知识</h2>
+
+        <h3 id="core-structure">3.1 JWT 三段结构</h3>
+        <p>JWT 是一个用 <code>.</code> 分隔的三段式字符串：</p>
+        <pre><code class="language-text">eyJhbGciOiJIUzI1NiJ9.eyJ0ZW5hbnRfaWQiOiIwMDAwMDAi...xxx.5mJ3vN3Qk...xxx
+└── Header 段 ──┘└── Payload 段 ──────────────────────┘└── Signature 段 ──┘</code></pre>
+        <table>
+          <thead>
+            <tr><th>段</th><th>内容</th><th>编码方式</th><th>性质</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Header</td><td><code>{"alg":"HS256","typ":"JWT"}</code></td><td>Base64Url</td><td>可逆编码</td></tr>
+            <tr><td>Payload</td><td>用户身份信息 + exp/iat</td><td>Base64Url</td><td>可逆编码</td></tr>
+            <tr><td>Signature</td><td>HMAC-SHA256 哈希结果</td><td>Base64Url</td><td>不可逆哈希</td></tr>
+          </tbody>
+        </table>
+        <p><strong>关键区别</strong>：Header 和 Payload 是编码（可逆），任何人都能解码看到内容；Signature 是哈希（不可逆），无法反推。JWT 的安全性靠签名保证，不是靠编码隐藏内容。</p>
+
+        <h3 id="core-base64url">3.2 Base64Url 编码</h3>
+        <ul>
+          <li><strong>是什么</strong>：Base64 的 URL 安全变体，把任意二进制字节转为纯 ASCII 字符串。</li>
+          <li><strong>与 Base64 的区别</strong>：<code>+</code> → <code>-</code>，<code>/</code> → <code>_</code>，去掉末尾 <code>=</code> 填充。因为 <code>+</code> 和 <code>/</code> 在 URL 和 HTTP Header 中是特殊字符，会导致 token 被破坏。</li>
+          <li><strong>输入</strong>：一段 JSON 字符串的 UTF-8 字节序列。</li>
+          <li><strong>输出</strong>：一段只含 <code>[A-Za-z0-9-_]</code> 的 ASCII 字符串。</li>
+          <li><strong>可逆</strong>：完全可逆，可随时解码还原原始 JSON。</li>
+        </ul>
+        <p>具体例子（Header 段）：</p>
+        <pre><code class="language-text">输入 JSON: {"alg":"HS256","typ":"JWT"}
+UTF-8 字节: 7B 22 61 6C 67 22 3A 22 48 53 32 35 36 22 2C 22 74 79 70 22 3A 22 4A 57 54 22 7D
+输出(Base64Url): eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</code></pre>
+        <p>⚠️ Payload 是 Base64Url 编码而非加密，任何人都能解码看到内容，所以不能放密码等敏感信息。</p>
+
+        <h3 id="core-hmac">3.3 HMAC-SHA256 签名</h3>
+        <ul>
+          <li><strong>是什么</strong>：用密钥对数据做 HMAC-SHA256 运算得到的固定长度哈希值。</li>
+          <li><strong>输入①</strong>：<code>base64UrlEncode(Header) + "." + base64UrlEncode(Payload)</code>（即前两段拼接后的字符串）。</li>
+          <li><strong>输入②</strong>：<code>secretKey</code>（服务端密钥，字节形式）。</li>
+          <li><strong>算法</strong>：HMAC-SHA256。</li>
+          <li><strong>输出</strong>：32 字节（256 bit）的哈希值 → 再 Base64Url 编码 → ASCII 字符串。</li>
+          <li><strong>不可逆</strong>：无法从输出反推输入，所以签名段不存在"反向解码"。</li>
+        </ul>
+        <pre><code class="language-text">待签名数据 = "eyJhbGciOiJIUzI1NiJ9" + "." + "eyJ0ZW5hbnRfaWQiOiIwMDAwMDAi..."
+密钥       = secretKey.getBytes()
+HMAC-SHA256(key=密钥, data=待签名数据) → 32字节哈希
+→ Base64UrlEncode → "5mJ3vN3Qk..."</code></pre>
+        <p><strong>为什么签名能防篡改</strong>：攻击者篡改 Payload 后，需要重新计算签名，但没有 secretKey 就算不出正确签名，网关验签时比对不通过即拒绝。</p>
+
+        <h3 id="core-generate">3.4 JWT 生成</h3>
+        <ul>
+          <li><strong>输入</strong>：用户认证信息（username + password）→ 验证通过后查询出的用户身份信息（userId、tenantId、roleId 等）+ secretKey。</li>
+          <li><strong>过程</strong>：验证身份 → 查询用户信息 → 构建 Claims → 调用 JWT 库构建 token → （可选）存入 Redis。</li>
+          <li><strong>输出</strong>：JWT 字符串（access_token，有效期短）+ refresh_token（有效期长）。</li>
+        </ul>
+        <pre><code class="language-java">// 构建 Claims
+Map&lt;String, Object&gt; claims = new HashMap&lt;&gt;();
+claims.put("tenant_id", tenantId);
+claims.put("user_id", userId);
+claims.put("role_id", roleId);
+claims.put("user_name", userName);
+claims.put("exp", System.currentTimeMillis() + 3600 * 1000);
+
+// 生成 JWT
+String token = Jwts.builder()
+    .setClaims(claims)                                    // 放入载荷
+    .setIssuedAt(new Date())                              // 签发时间 iat
+    .setExpiration(new Date(System.currentTimeMillis()    // 过期时间 exp
+        + expireTime * 1000))
+    .signWith(SignatureAlgorithm.HS256,                   // HMAC-SHA256 签名
+              secretKey.getBytes())
+    .compact();                                           // 拼接为 xxx.yyy.zzz</code></pre>
+        <p><strong>项目示例</strong>：muyuan-slaughter 项目中，认证服务（muyuan-auth）独立部署，接收 <code>POST /oauth/token</code> 请求，支持 password、captcha、refresh_token、muyuansso 等多种 grant_type。JWT 工具类由外部依赖 muyuan-starter-jwt（SpringBlade 框架组件）提供。</p>
+
+        <h3 id="core-verify">3.5 JWT 验签</h3>
+        <p><strong>核心原则</strong>：验签是"重新计算签名 + 比对"，不是"反向解码签名"。</p>
+        <p>因为 HMAC-SHA256 是单向哈希函数，无法从输出反推输入。验签时用相同密钥对前两段重新计算 HMAC，再和第三段比对。</p>
+        <p>下图回答：网关收到请求后，按什么条件决定放行或拒绝？</p>
+        <figure>
+          <div class="diagram-shell">
+            <div class="mermaid" id="verify-flow">
+flowchart TD
+    A[收到请求] --> B{在白名单?}
+    B -- 是 --> Z[放行]
+    B -- 否 --> C{有Token?}
+    C -- 否 --> R1["401 缺失令牌"]
+    C -- 是 --> D[去掉bearer前缀]
+    D --> E["parseJWT: 验签+验过期"]
+    E --> F{签名有效且未过期?}
+    F -- 否 --> R2["401 Token解析失败"]
+    F -- 是 --> G{state校验开启?}
+    G -- 否 --> Z
+    G -- 是 --> H[Redis比对Token]
+    H --> I{Token匹配?}
+    I -- 否 --> R3["401 令牌已失效"]
+    I -- 是 --> Z
+            </div>
+          </div>
+          <figcaption>图 2：网关验签决策分支</figcaption>
+        </figure>
+        <p>精确步骤：</p>
+        <pre><code class="language-text">1. 用 "." 分割 token → headerPart, payloadPart, signaturePart
+
+2. 拼接前两段（不解码！直接用编码后的字符串）
+   data = headerPart + "." + payloadPart
+
+3. 用密钥重新计算签名
+   expectedSig = Base64UrlEncode(HMAC-SHA256(secretKey, data))
+
+4. 比对
+   expectedSig === signaturePart ?
+   ├─ 不等 → 签名无效（被篡改/密钥不对）→ 401
+   └─ 相等 → 验签通过
+
+5. 验签通过后，解码 Payload 检查 exp
+   claims = Base64UrlDecode(payloadPart) → JSON → Map
+   claims.exp > 当前时间 ? → 验过期</code></pre>
+        <p>时序很重要：先验签确认 token 没被篡改，然后才信任 Payload 里的内容。如果先读 Payload 再验签，攻击者篡改的 Payload 会被误信。</p>
+        <table>
+          <thead>
+            <tr><th></th><th>生成</th><th>验签</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>输入</td><td>Claims + secretKey</td><td>JWT 字符串 + secretKey</td></tr>
+            <tr><td>过程</td><td><code>Jwts.builder().setClaims().signWith().compact()</code></td><td>分割三段 → 重算 HMAC → 比对</td></tr>
+            <tr><td>输出</td><td>JWT 字符串</td><td>Claims（通过）或 null（失败）</td></tr>
+          </tbody>
+        </table>
+        <p><strong>类比</strong>：签名验证就像签字比对——你不可能把签字"还原"成手，只能"再签一次，看像不像"。HMAC 同理：单向不可逆，只能重算 + 比对。</p>
+
+        <h3 id="core-password">3.6 密码与 JWT 的关系</h3>
+        <pre><code class="language-text">登录时（一次性）                    后续每次请求（无数次）
+─────────────                     ──────────────
+密码(MD5) → 验证身份               携带 JWT → 验签+验过期
+   ↓                                  ↓
+验证通过 → 生成 JWT                 无需密码、无需查库
+   ↓                                  ↓
+JWT 不含密码，只含身份信息          即可确认"你是谁"</code></pre>
+        <ul>
+          <li><strong>密码的作用</strong>：仅限于登录时"证明你是这个人"，验证通过后不再使用。</li>
+          <li><strong>JWT 的内容</strong>：只放身份标识（userId、tenantId、roleId 等），绝不放密码。</li>
+          <li><strong>无状态</strong>：网关验签只需 secretKey，不需要查数据库验证密码，这就是 JWT "无状态"的含义。</li>
+          <li><strong>局限</strong>：JWT 一旦签发在过期前无法主动作废（除非开启 Redis 状态校验，用额外存储实现踢人/登出失效）。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">4. 贯穿示例</h2>
+        <p>以下用一个完整示例串起 JWT 的生成、传输和验签全过程。</p>
+
+        <h3 id="example-login">4.1 登录获取 JWT</h3>
+        <p>请求：</p>
+        <pre><code class="language-text">POST /oauth/token
+Authorization: Basic Base64(clientId:clientSecret)
+Params: grant_type=password&amp;username=admin&amp;password=e10adc39...(MD5)</code></pre>
+        <p>认证服务验证通过后生成 JWT：</p>
+        <pre><code class="language-json">{
+  "access_token": "eyJhbGciOiJIUzI1NiJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiJ9...",
+  "expires_in": 3600,
+  "tenant_id": "000000",
+  "user_name": "admin"
+}</code></pre>
+
+        <h3 id="example-request">4.2 携带 JWT 请求</h3>
+        <pre><code class="language-text">GET /api/xxx
+Muyuan-Auth: bearer eyJhbGciOiJIUzI1NiJ9...</code></pre>
+
+        <h3 id="example-verify">4.3 网关验签</h3>
+        <pre><code class="language-text">1. 分割 → headerPart="eyJhbGciOiJIUzI1NiJ9"
+          payloadPart="eyJ0ZW5hbnRfaWQiOiIwMDAwMDAi..."
+          signaturePart="5mJ3vN3Qk..."
+
+2. 重算 → expected = Base64Url(HMAC-SHA256(secretKey, headerPart+"."+payloadPart))
+
+3. 比对 → expected === signaturePart → 验签通过 ✅
+
+4. 验过期 → 解码 payloadPart → exp=1630000000 > 当前时间 → 未过期 ✅
+
+5. 放行 → 下游业务服务</code></pre>
+      </section>
+
+      <section aria-labelledby="confusion">
+        <h2 id="confusion">5. 易混概念</h2>
+        <table>
+          <thead>
+            <tr><th>概念 A</th><th>概念 B</th><th>核心区别</th><th>选择依据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>编码（Base64Url）</td><td>哈希（HMAC-SHA256）</td><td>编码可逆，哈希不可逆</td><td>传输用编码，防篡改用哈希</td></tr>
+            <tr><td>Base64</td><td>Base64Url</td><td><code>+/</code> vs <code>-_</code>，Base64Url 去 <code>=</code></td><td>URL/Header 传输用 Base64Url</td></tr>
+            <tr><td>编码</td><td>加密</td><td>编码不需密钥可逆，加密需密钥可逆</td><td>编码用于格式转换，加密用于保密</td></tr>
+            <tr><td>哈希</td><td>加密</td><td>哈希不可逆，加密可逆需密钥</td><td>防篡改用哈希，保密用加密</td></tr>
+            <tr><td>access_token</td><td>refresh_token</td><td>access 有效期短用于鉴权，refresh 有效期长用于续期</td><td>请求用 access，过期后用 refresh 换新</td></tr>
+            <tr><td>无状态鉴权</td><td>有状态鉴权</td><td>无状态不查库（JWT），有状态每次查库（Session）</td><td>微服务分布式用 JWT，单体内聚可用 Session</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="pitfalls">
+        <h2 id="pitfalls">6. 常见误区与边界</h2>
+        <ol>
+          <li><strong>误区</strong>：签名可以"反向解码"出原始数据。<br>
+            <strong>正确理解</strong>：HMAC-SHA256 是单向哈希，不可逆。验签是"重新计算 + 比对"，不是"解码签名"。</li>
+          <li><strong>误区</strong>：Payload 是加密的，别人看不到内容。<br>
+            <strong>正确理解</strong>：Payload 是 Base64Url 编码，任何人都能解码。不能放密码等敏感信息。</li>
+          <li><strong>误区</strong>：验签时需要先解码 Header 和 Payload 再重新编码后计算签名。<br>
+            <strong>正确理解</strong>：验签时直接用编码后的字符串参与 HMAC 计算，不需要先解码。因为生成签名时用的也是编码后的字符串。</li>
+          <li><strong>误区</strong>：JWT 一旦签发就无法失效。<br>
+            <strong>正确理解</strong>：纯 JWT 确实无法主动作废，但可通过额外的 Redis 状态校验实现踢人/登出失效。这是"无状态"与"可控失效"的权衡。</li>
+          <li><strong>误区</strong>：密码需要放在 JWT 里以便后续验证。<br>
+            <strong>正确理解</strong>：密码只在登录时验证一次，JWT 只放身份标识。后续鉴权靠验签，不需要密码。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="cheatsheet">
+        <h2 id="cheatsheet">7. 速查</h2>
+        <table>
+          <thead>
+            <tr><th>目标</th><th>概念或操作</th><th>关键条件</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>防篡改</td><td>HMAC-SHA256 签名</td><td>需要服务端 secretKey</td></tr>
+            <tr><td>URL 安全传输</td><td>Base64Url 编码</td><td>替换 <code>+/</code> 为 <code>-_</code></td></tr>
+            <tr><td>验签</td><td>重算 HMAC + 比对第三段</td><td>密钥与生成端一致</td></tr>
+            <tr><td>防信息泄露</td><td>Payload 不放敏感信息</td><td>Base64Url 可解码</td></tr>
+            <tr><td>主动失效</td><td>Redis 状态校验</td><td>需额外存储，牺牲无状态</td></tr>
+            <tr><td>续期</td><td>refresh_token 换新 access_token</td><td>refresh_token 未过期</td></tr>
+            <tr><td>多租户</td><td>Claims 中放 tenant_id</td><td>认证服务写入，网关读取</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">8. 最终记忆主线</h2>
+        <ol>
+          <li><strong>密码一次性</strong>：密码只在登录验证身份，JWT 不含密码，之后靠验权。</li>
+          <li><strong>三段结构</strong>：Header（编码）+ Payload（编码）+ Signature（哈希），用 <code>.</code> 拼接。</li>
+          <li><strong>编码 vs 哈希</strong>：Base64Url 可逆（传输），HMAC-SHA256 不可逆（防篡改）。</li>
+          <li><strong>验签 = 重算 + 比对</strong>：不是反向解码，用相同密钥对前两段重算 HMAC，和第三段比对。</li>
+          <li><strong>先验签后读内容</strong>：验签通过后才解码 Payload，防止信任被篡改的数据。</li>
+          <li><strong>无状态权衡</strong>：不查库即可鉴权是优势，但无法主动作废是代价（Redis 状态校验可弥补）。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="selftest">
+        <h2 id="selftest">9. 自测问题</h2>
+        <ol>
+          <li>为什么 JWT 的 Payload 不能放密码？Payload 用的是什么编码，能否被还原？</li>
+          <li>验签时为什么不直接"解码签名"，而是"重新计算 + 比对"？HMAC-SHA256 的什么性质决定了这一点？</li>
+          <li>验签时需要先解码 Header 和 Payload 再重新编码后参与 HMAC 计算吗？为什么？</li>
+          <li>如果攻击者篡改了 Payload 中的 <code>user_id</code>，网关验签时会怎样？</li>
+          <li>JWT 的"无状态"鉴权是什么意思？它带来了什么优势，又有什么局限？</li>
+          <li>如果需要实现"用户登出后 token 立即失效"，纯 JWT 能做到吗？需要什么额外机制？</li>
+        </ol>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var mermaidSources = new Map();
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function rememberMermaidSources() {
+      document.querySelectorAll('.mermaid').forEach(function (element, index) {
+        if (!element.id) element.id = 'diagram-' + (index + 1);
+        mermaidSources.set(element.id, element.textContent.trim());
+      });
+    }
+
+    function showRenderError(error) {
+      document.documentElement.dataset.renderStatus = 'error';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        if (!element.querySelector('svg')) {
+          element.classList.add('render-error');
+          element.textContent = 'Diagram rendering failed. See the browser console for details.';
+        }
+      });
+      console.error('Knowledge document rendering failed:', error);
+    }
+
+    async function renderMermaid() {
+      if (!window.mermaid) throw new Error('Mermaid did not load.');
+
+      document.documentElement.dataset.renderStatus = 'rendering';
+      document.querySelectorAll('.mermaid').forEach(function (element) {
+        element.classList.remove('render-error');
+        element.removeAttribute('data-processed');
+        element.textContent = mermaidSources.get(element.id) || '';
+      });
+
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default',
+        securityLevel: 'strict',
+        themeVariables: { fontSize: '16px' },
+        flowchart: { useMaxWidth: true, htmlLabels: false, curve: 'basis' },
+        sequence: { useMaxWidth: true, actorMargin: 50 }
+      });
+
+      await window.mermaid.run({ nodes: document.querySelectorAll('.mermaid') });
+      document.documentElement.dataset.renderStatus = 'ready';
+    }
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    async function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      button.disabled = true;
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active = headings[0];
+      headings.forEach(function (heading) {
+        if (heading.offsetTop <= marker) active = heading;
+      });
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', async function () {
+      rememberMermaidSources();
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+
+      try {
+        await renderMermaid();
+      } catch (error) {
+        showRenderError(error);
+      }
+    });
+  </script>
+</body>
+</html>

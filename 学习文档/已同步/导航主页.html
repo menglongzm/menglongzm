@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学习文档导航</title>
+  <meta name="description" content="技术知识库导航主页 — 11 篇学习文档的统一入口">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg-pattern: rgba(255,255,255,0.025);
+      --surface: #161b22; --card: #1c2331; --card-hover: #232b3d;
+      --text: #e6edf3; --text-secondary: #b1bac4; --muted: #8b949e;
+      --border: #30363d; --accent: #e3b341; --accent-glow: rgba(227,179,65,0.08);
+      --radius: 12px; --transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+      --font-serif: 'Noto Serif SC','Songti SC',serif;
+      --font-sans: 'Noto Sans SC',-apple-system,BlinkMacSystemFont,sans-serif;
+      --font-mono: 'JetBrains Mono','Cascadia Code',monospace;
+    }
+    [data-theme="light"] {
+      --bg: #f7f3ed; --bg-pattern: rgba(0,0,0,0.04);
+      --surface: #ede8df; --card: #ffffff; --card-hover: #fffcf7;
+      --text: #1c1917; --text-secondary: #44403c; --muted: #78716c;
+      --border: #d6d3d1; --accent: #8b6914; --accent-glow: rgba(139,105,20,0.06);
+    }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+    body { font-family: var(--font-sans); background: var(--bg); color: var(--text); line-height: 1.6; min-height: 100vh; transition: background-color 0.3s, color 0.3s; }
+    body::before { content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-image: radial-gradient(circle, var(--bg-pattern) 1px, transparent 1px); background-size: 24px 24px; pointer-events: none; z-index: 0; }
+    .header { position: sticky; top: 0; z-index: 50; background: var(--bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); transition: background-color 0.3s, border-color 0.3s; }
+    .header-content { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; max-width: 1200px; margin: 0 auto; }
+    .logo { display: flex; align-items: center; gap: 8px; font-family: var(--font-serif); font-size: 1.2rem; font-weight: 700; }
+    .logo-icon { font-size: 1.4rem; }
+    .theme-toggle { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all var(--transition); }
+    .theme-toggle:hover { border-color: var(--accent); transform: scale(1.05); }
+    .hero { text-align: center; padding: 64px 24px 48px; background: radial-gradient(ellipse at top, var(--accent-glow) 0%, transparent 70%); }
+    .hero h1 { font-family: var(--font-serif); font-size: 2.8rem; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .hero .subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 28px; }
+    .hero::after { content: ''; display: block; width: 60px; height: 3px; background: var(--accent); margin: 0 auto; border-radius: 2px; }
+    .stats { display: flex; justify-content: center; gap: 48px; margin-top: 32px; }
+    .stat { text-align: center; }
+    .stat-number { display: block; font-family: var(--font-serif); font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1.2; }
+    .stat-number.date { font-size: 1.3rem; font-family: var(--font-mono); }
+    .stat-label { display: block; font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+    .controls { padding: 28px 24px 20px; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+    .search-box { position: relative; max-width: 600px; margin: 0 auto 20px; }
+    .search-box input { width: 100%; padding: 12px 16px 12px 44px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); color: var(--text); font-size: 0.95rem; font-family: var(--font-sans); transition: all var(--transition); }
+    .search-box input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .search-box input::placeholder { color: var(--muted); }
+    .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); }
+    .filter-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 800px; margin: 0 auto; }
+    .chip { padding: 6px 16px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.85rem; font-family: var(--font-sans); cursor: pointer; transition: all var(--transition); white-space: nowrap; }
+    .chip:hover { border-color: var(--chip-color); color: var(--chip-color); }
+    .chip.active { background: var(--chip-color); border-color: var(--chip-color); color: #fff; }
+    main { padding: 0 24px 48px; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1; }
+    .category { margin-bottom: 48px; }
+    .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
+    .category-icon { font-size: 1.2rem; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--cat-bg); }
+    .category-name { font-family: var(--font-serif); font-size: 1.4rem; font-weight: 700; }
+    .category-count { font-family: var(--font-mono); font-size: 0.85rem; padding: 2px 10px; border-radius: 12px; background: var(--cat-bg); color: var(--cat-color); }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+    .card { display: flex; flex-direction: column; text-decoration: none; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--card-accent); border-radius: var(--radius); padding: 24px; transition: all var(--transition); cursor: pointer; }
+    .card:hover { background: var(--card-hover); border-color: var(--card-accent); border-left-width: 6px; transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+    .card-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 8px; transition: color 0.3s; }
+    .card:hover .card-title { color: var(--card-accent); }
+    .card-desc { color: var(--muted); font-size: 0.85rem; line-height: 1.6; margin-bottom: 16px; flex-grow: 1; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .tag { font-family: var(--font-mono); font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: var(--tag-bg); color: var(--card-accent); }
+    .card-link { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--card-accent); font-weight: 500; margin-top: auto; transition: gap 0.3s; }
+    .card:hover .card-link { gap: 8px; }
+    .empty-state { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; text-align: center; }
+    .empty-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+    .empty-state p { color: var(--muted); font-size: 1.1rem; }
+    .empty-hint { font-size: 0.85rem !important; margin-top: 4px; }
+    .footer { border-top: 1px solid var(--border); padding: 24px; text-align: center; color: var(--muted); font-size: 0.85rem; position: relative; z-index: 1; }
+    .footer a { color: var(--accent); text-decoration: none; }
+    .footer-ai { margin-top: 8px; font-size: 0.8rem; }
+    .back-to-top { position: fixed; bottom: 24px; right: 24px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 1.2rem; cursor: pointer; opacity: 0; pointer-events: none; transition: all var(--transition); z-index: 100; display: flex; align-items: center; justify-content: center; }
+    .back-to-top.visible { opacity: 1; pointer-events: auto; }
+    .back-to-top:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .card { animation: fadeInUp 0.4s ease-out backwards; }
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.10s; }
+    .card:nth-child(3) { animation-delay: 0.15s; }
+    @media (max-width: 1024px) { .card-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2rem; }
+      .stats { gap: 24px; }
+      .stat-number { font-size: 1.5rem; }
+      .stat-number.date { font-size: 1.1rem; }
+      .card-grid { grid-template-columns: 1fr; }
+      .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+      .chip { flex-shrink: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">📚</span>
+        <span>学习文档导航</span>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="切换主题">☀️</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>学习文档导航</h1>
+    <p class="subtitle">技术知识库 · 个人学习笔记索引</p>
+    <div class="stats">
+      <div class="stat"><span class="stat-number">11</span><span class="stat-label">篇文档</span></div>
+      <div class="stat"><span class="stat-number">7</span><span class="stat-label">个分类</span></div>
+      <div class="stat"><span class="stat-number date last-updated">2026-08-07</span><span class="stat-label">最后更新</span></div>
+    </div>
+  </section>
+
+  <section class="controls">
+    <div class="search-box">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input type="text" id="search" placeholder="搜索文档标题、描述或标签..." autocomplete="off" />
+    </div>
+    <div class="filter-chips" id="filterChips"></div>
+  </section>
+
+  <main id="categories"></main>
+
+  <div class="empty-state" id="emptyState">
+    <div class="empty-icon">🔍</div>
+    <p>未找到匹配的文档</p>
+    <p class="empty-hint">试试其他关键词</p>
+  </div>
+
+  <footer class="footer">
+    <p>最后更新: <span class="last-updated">2026-08-07</span> · 共 11 篇文档 · 点击卡片打开文档</p>
+    <p class="footer-ai">由 <a href="https://github.com/ThinkInAIXYZ/deepchat" target="_blank" rel="noopener">DeepChat</a> 生成 | 页面内容由 AI 生成，仅供参考</p>
+  </footer>
+
+  <button class="back-to-top" id="backToTop" aria-label="回到顶部">↑</button>
+
+  <script>
+    const categories = [
+      { id: 'java-core',    name: 'Java 核心',     icon: '☕', color: '#e3b341' },
+      { id: 'framework',    name: '框架与中间件',   icon: '🧩', color: '#7eb8da' },
+      { id: 'frontend',     name: '前端',          icon: '🎨', color: '#f87171' },
+      { id: 'engineering',  name: '构建与工程',     icon: '🔧', color: '#a78bfa' },
+      { id: 'ai-agent',     name: 'AI 与 Agent',  icon: '🤖', color: '#4ade80' },
+      { id: 'algorithm',    name: '算法',          icon: '📊', color: '#fb923c' },
+      { id: 'project',      name: '项目实战',       icon: '📋', color: '#f472b6' }
+    ];
+
+    const documents = [
+      { title: 'Java Stream、Lambda 与函数式接口学习梳理', file: 'Java_Stream_Lambda_学习梳理.html', description: '从集合处理的基本概念开始，逐步梳理 Stream、Lambda、函数式接口、匿名类、方法引用，以及 collect / groupingBy 的关系', category: 'java-core', tags: ['Stream','Lambda','函数式接口','方法引用','collect'] },
+      { title: 'Java 异常机制学习梳理', file: 'Java异常机制学习梳理.html', description: 'Java 异常体系结构、Checked 与 Unchecked 异常、自定义异常、异常处理最佳实践', category: 'java-core', tags: ['异常体系','Checked','Unchecked','try-catch','最佳实践'] },
+      { title: 'Spring Boot 约定配置与启动机制学习梳理', file: 'Spring-Boot约定配置与启动机制学习梳理.html', description: '约定优于配置、Spring Boot 启动过程、请求分发链路、Maven 与 Boot 边界、自动配置与 Bean 生命周期', category: 'framework', tags: ['Spring Boot','自动配置','启动过程','Bean生命周期','请求分发'] },
+      { title: 'MyBatis-Plus 学习梳理', file: 'mybatis-plus-knowledge.html', description: 'MyBatis-Plus 核心功能、继承模式与扩展能力的通用学习笔记', category: 'framework', tags: ['MyBatis-Plus','CRUD','条件构造器','分页插件','代码生成'] },
+      { title: 'Vue 前端知识梳理：从界面操作到后端请求', file: 'Vue前端知识梳理.html', description: 'Vue 阅读框架：数据循环、模板连接线、函数触发与参数、响应式、父子通信与启动链路', category: 'frontend', tags: ['Vue','响应式','组件通信','模板语法','生命周期'] },
+      { title: 'Maven 学习梳理（结合 frozen_online 项目）', file: 'Maven学习笔记-结合frozen_online项目.html', description: '可独立阅读的 Maven 学习文档：依赖管理、构建管理与项目结构管理', category: 'engineering', tags: ['Maven','依赖管理','构建管理','POM','生命周期'] },
+      { title: 'Git 工作流与合并冲突复盘', file: '学习文档.html', description: 'Git 命令速查、测试分支工作流、单元测试实践与一次真实合并冲突的完整复盘', category: 'engineering', tags: ['Git','工作流','合并冲突','分支策略','单元测试'] },
+      { title: 'MCP 服务器两种实现方式对比分析', file: 'MCP两种实现方式对比分析.html', description: '底层 Server 与高层 McpServer 两种 MCP 服务器实现方式的完整对比学习文档', category: 'ai-agent', tags: ['MCP','Server','McpServer','对比分析','Tool'] },
+      { title: 'MCP 协议与 Agent 集成学习梳理', file: 'MCP协议与Agent集成学习梳理.html', description: 'MCP 核心概念、通信机制、实现架构与三方职责边界的可独立学习文档', category: 'ai-agent', tags: ['MCP','Agent','通信机制','JSON-RPC','职责边界'] },
+      { title: 'LeetCode Hot 100 算法复习笔记', file: 'hot100.html', description: '75 道高频算法题，15 个章节，含 AlgoPlayer 动画引擎的可交互学习笔记', category: 'algorithm', tags: ['LeetCode','算法','数据结构','动画','Hot100'] },
+      { title: '月度成本页面前后端完整实现报告', file: '月度成本页面前后端完整实现报告.html', description: '月度入库成本页面的业务链、前端实现、API 合同、状态机、日成本三源合并、Mongo 模型与从零复现的项目知识说明', category: 'project', tags: ['成本管理','前后端','API合同','状态机','MongoDB'] }
+    ];
+
+    let activeCategory = 'all';
+    let searchQuery = '';
+
+    function init() {
+      var savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.dataset.theme = savedTheme;
+      updateThemeButton();
+      renderFilterChips();
+      renderCategories();
+      document.getElementById('search').addEventListener('input', handleSearch);
+      document.getElementById('backToTop').addEventListener('click', function() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      window.addEventListener('scroll', handleScroll);
+    }
+
+    function renderFilterChips() {
+      var container = document.getElementById('filterChips');
+      var chips = [{ id: 'all', name: '全部', color: '#e3b341' }].concat(categories);
+      container.innerHTML = chips.map(function(chip) {
+        return '<button class="chip ' + (chip.id === activeCategory ? 'active' : '') +
+               '" data-category="' + chip.id + '" style="--chip-color: ' + chip.color + '">' +
+               chip.name + '</button>';
+      }).join('');
+      container.querySelectorAll('.chip').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+          handleFilterChip(chip.dataset.category);
+        });
+      });
+    }
+
+    function renderCategories() {
+      var main = document.getElementById('categories');
+      main.innerHTML = categories.map(function(cat) {
+        var docs = documents.filter(function(d) { return d.category === cat.id; });
+        return '<section class="category" data-category="' + cat.id +
+               '" style="--cat-color: ' + cat.color + '; --cat-bg: ' + cat.color + '22;">' +
+               '<div class="category-header">' +
+                 '<span class="category-icon">' + cat.icon + '</span>' +
+                 '<h2 class="category-name">' + cat.name + '</h2>' +
+                 '<span class="category-count">' + docs.length + '</span>' +
+               '</div>' +
+               '<div class="card-grid">' +
+                 docs.map(function(doc) {
+                   var searchText = (doc.title + ' ' + doc.description + ' ' + doc.tags.join(' ')).toLowerCase();
+                   return '<a href="' + doc.file + '" class="card" ' +
+                          'style="--card-accent: ' + cat.color + '; --tag-bg: ' + cat.color + '1a;" ' +
+                          'data-search="' + searchText.replace(/"/g, '&quot;') + '">' +
+                          '<h3 class="card-title">' + doc.title + '</h3>' +
+                          '<p class="card-desc">' + doc.description + '</p>' +
+                          '<div class="card-tags">' +
+                            doc.tags.map(function(tag) { return '<span class="tag">' + tag + '</span>'; }).join('') +
+                          '</div>' +
+                          '<span class="card-link">打开文档 →</span>' +
+                          '</a>';
+                 }).join('') +
+               '</div>' +
+               '</section>';
+      }).join('');
+    }
+
+    function handleSearch(e) {
+      searchQuery = e.target.value.toLowerCase().trim();
+      filterDocuments();
+    }
+
+    function handleFilterChip(category) {
+      activeCategory = category;
+      document.querySelectorAll('.chip').forEach(function(chip) {
+        chip.classList.toggle('active', chip.dataset.category === category);
+      });
+      filterDocuments();
+    }
+
+    function filterDocuments() {
+      var visibleCount = 0;
+      document.querySelectorAll('.category').forEach(function(section) {
+        var catId = section.dataset.category;
+        var categoryMatch = activeCategory === 'all' || catId === activeCategory;
+        var categoryVisible = 0;
+        section.querySelectorAll('.card').forEach(function(card) {
+          var searchText = card.dataset.search;
+          var searchMatch = !searchQuery || searchText.indexOf(searchQuery) !== -1;
+          var visible = categoryMatch && searchMatch;
+          card.style.display = visible ? '' : 'none';
+          if (visible) categoryVisible++;
+        });
+        section.style.display = categoryVisible > 0 ? '' : 'none';
+        visibleCount += categoryVisible;
+      });
+      document.getElementById('emptyState').style.display = visibleCount === 0 ? 'flex' : 'none';
+    }
+
+    function toggleTheme() {
+      var html = document.documentElement;
+      var isDark = html.dataset.theme === 'dark';
+      html.dataset.theme = isDark ? 'light' : 'dark';
+      localStorage.setItem('theme', html.dataset.theme);
+      updateThemeButton();
+    }
+
+    function updateThemeButton() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      document.querySelector('.theme-toggle').textContent = isDark ? '☀️' : '🌙';
+    }
+
+    function handleScroll() {
+      var btn = document.getElementById('backToTop');
+      btn.classList.toggle('visible', window.scrollY > 400);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
