@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-render-status="pending" data-runtime-error-count="0">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Java 泛型学习梳理</title>
+  <meta name="description" content="系统梳理 Java 泛型核心概念：类级与方法级泛型、类型推断、通配符与 PECS、类型擦除">
+
+  <!-- Prism: online syntax highlighting; degrades gracefully offline (code blocks remain readable via CSS) -->
+  <link id="prism-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism.css">
+  <link id="prism-dark" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" disabled>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #ffffff;
+      --surface: #f5f7f8;
+      --surface-strong: #e9edef;
+      --text: #202529;
+      --muted: #606a70;
+      --border: #cdd5d9;
+      --accent: #137a5a;
+      --accent-soft: #dff3eb;
+      --warning: #9a5b00;
+      --code: #f2f4f5;
+      --focus: #126da8;
+      --sidebar-width: 264px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #151719;
+      --surface: #1e2225;
+      --surface-strong: #2a3034;
+      --text: #edf1f2;
+      --muted: #adb7bc;
+      --border: #3c454a;
+      --accent: #5fc49e;
+      --accent-soft: #173f33;
+      --warning: #efb35f;
+      --code: #202529;
+      --focus: #78bde8;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.72;
+      letter-spacing: 0;
+    }
+
+    button, code, pre { font: inherit; }
+
+    a { color: var(--accent); }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 3px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      padding: 28px 20px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+    }
+
+    .toc-title {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toc li + li { margin-top: 4px; }
+
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-left: 3px solid transparent;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      background: var(--surface-strong);
+      color: var(--text);
+    }
+
+    .toc a.toc-active {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text);
+      font-weight: 650;
+    }
+
+    .content {
+      width: min(100%, 980px);
+      min-width: 0;
+      padding: 48px 56px 96px;
+    }
+
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      min-width: 104px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .theme-toggle:hover { border-color: var(--accent); }
+
+    h1, h2, h3 {
+      color: var(--text);
+      letter-spacing: 0;
+      line-height: 1.25;
+      scroll-margin-top: 24px;
+      text-wrap: balance;
+    }
+
+    h1 {
+      max-width: calc(100% - 120px);
+      margin: 0 0 18px;
+      font-size: 2.25rem;
+    }
+
+    h2 {
+      margin: 52px 0 18px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.55rem;
+    }
+
+    h3 {
+      margin: 32px 0 12px;
+      font-size: 1.2rem;
+    }
+
+    h4 {
+      margin: 24px 0 10px;
+      font-size: 1.05rem;
+    }
+
+    p, li, td, th { overflow-wrap: anywhere; }
+
+    .lead {
+      max-width: 760px;
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .scope-note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--warning);
+      background: var(--surface);
+      color: var(--muted);
+    }
+
+    table {
+      display: block;
+      width: 100%;
+      margin: 18px 0;
+      overflow-x: auto;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      min-width: 140px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th { background: var(--surface); }
+
+    code {
+      padding: 0.12em 0.34em;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9em;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 18px 0;
+      padding: 18px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--code);
+      line-height: 1.55;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .pitfall {
+      margin: 16px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .pitfall strong { color: var(--accent); }
+
+    ol, ul { padding-left: 24px; }
+    ol li, ul li { margin-bottom: 6px; }
+
+    @media (max-width: 768px) {
+      html { scroll-padding-top: 12px; }
+
+      .layout { display: block; }
+
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+        padding: 20px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .content {
+        width: 100%;
+        padding: 32px 20px 72px;
+      }
+
+      .theme-toggle {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+      }
+
+      h1 {
+        max-width: calc(100% - 108px);
+        font-size: 1.75rem;
+      }
+
+      h2 { font-size: 1.35rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="theme-toggle" type="button" aria-label="切换到暗色主题">Dark theme</button>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav class="toc" aria-label="文档目录">
+        <span class="toc-title">Contents</span>
+        <ul>
+          <li><a href="#positioning">1. 一句话定位</a></li>
+          <li><a href="#map">2. 整体地图</a></li>
+          <li><a href="#core">3. 核心知识</a></li>
+          <li><a href="#example">4. 贯穿示例</a></li>
+          <li><a href="#collections">5. 集合中的泛型</a></li>
+          <li><a href="#confusion">6. 易混概念</a></li>
+          <li><a href="#pitfalls">7. 常见误区</a></li>
+          <li><a href="#cheatsheet">8. 速查</a></li>
+          <li><a href="#memory">9. 记忆主线</a></li>
+          <li><a href="#quiz">10. 自测问题</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <h1>Java 泛型学习梳理</h1>
+      <p class="lead">本文系统梳理 Java 泛型的核心概念：类级泛型与方法级泛型的区别、类型推断机制、通配符与 PECS 原则、类型擦除，以及在统一响应类和集合框架中的实际应用。适合已掌握 Java 基础语法、希望深入理解泛型类型系统的开发者。</p>
+      <p class="scope-note"><strong>范围：</strong>通用 Java 泛型知识，以 <code>R&lt;T&gt;</code> 统一响应类和 <code>List</code>、<code>Map</code>、<code>Set</code> 集合为教学示例。不依赖特定项目代码。</p>
+
+      <section aria-labelledby="positioning">
+        <h2 id="positioning">1. 一句话定位</h2>
+        <p>Java 泛型在编译期对类型进行参数化约束，将运行时的 <code>ClassCastException</code> 提前到编译期报错，同时用一份代码适配多种类型。</p>
+      </section>
+
+      <section aria-labelledby="map">
+        <h2 id="map">2. 整体地图</h2>
+        <p>泛型知识围绕四条主线展开：</p>
+        <table>
+          <thead>
+            <tr><th>主线</th><th>核心问题</th><th>关键概念</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>声明</td><td>在哪里声明类型参数？</td><td>类级泛型、方法级泛型</td></tr>
+            <tr><td>推断</td><td>使用时要不要写具体类型？</td><td>类型推断、钻石操作符</td></tr>
+            <tr><td>灵活性</td><td>不同泛型实例之间能否赋值？</td><td>不变性、通配符、PECS</td></tr>
+            <tr><td>运行时</td><td>泛型在 JVM 中还存在吗？</td><td>类型擦除</td></tr>
+          </tbody>
+        </table>
+        <p>学习依赖：先理解"声明"（类级 vs 方法级），再理解"推断"（连接声明和使用的桥梁），然后理解"不变性"带来的限制和"通配符"如何解决，最后理解"类型擦除"解释运行时行为。</p>
+      </section>
+
+      <section aria-labelledby="core">
+        <h2 id="core">3. 核心知识</h2>
+
+        <h3 id="class-generic">3.1 类级泛型</h3>
+        <p><strong>是什么</strong>：在类名后用尖括号声明的类型参数，绑定到类的实例。</p>
+        <p><strong>如何工作</strong>：类型参数在实例化时确定，此后该实例的字段和方法都使用这个具体类型。</p>
+<pre><code class="language-java">public class R&lt;T&gt; {           // 类级泛型 T
+    private T data;            // 字段使用 T
+    public T getData() {      // 实例方法使用 T
+        return data;
+    }
+}
+
+public class List&lt;E&gt; {        // 类级泛型 E
+    private E[] elements;
+    public boolean add(E e) { ... }
+    public E get(int index) { ... }
+}
+
+public class Map&lt;K, V&gt; {      // 两个类级泛型 K 和 V
+    public V put(K key, V value) { ... }
+    public V get(Object key) { ... }
+}</code></pre>
+        <p><strong>绑定时机</strong>：<code>new R&lt;String&gt;()</code> 实例化那一刻，T 被确定为 String。</p>
+        <p><strong>适用范围</strong>：实例字段、实例方法、非静态内部类。静态方法<strong>不能</strong>使用类级泛型。</p>
+        <p><strong>命名惯例</strong>：T（Type）、E（Element）、K（Key）、V（Value）。名字只是惯例，叫什么都行，不影响语义。</p>
+
+        <h3 id="method-generic">3.2 方法级泛型</h3>
+        <p><strong>是什么</strong>：在方法返回类型之前用尖括号声明的类型参数，只在该方法内部有效。</p>
+        <p><strong>如何工作</strong>：<code>&lt;T&gt;</code> 出现在返回类型之前是声明，之后所有的 <code>T</code> 都在引用这个被声明的 T。</p>
+<pre><code class="language-java">public static &lt;T&gt; R&lt;T&gt; ok(T data) { ... }
+//            ─┬─  ─┬─    ─┬─
+//              │     │      └─ 参数类型：使用 T
+//              │     └──────── 返回类型：使用 T
+//              └────────────── 声明 T</code></pre>
+        <p><strong>一个声明，多次引用</strong>——和变量声明与使用的关系一样：</p>
+<pre><code class="language-java">int x;        // 声明
+x = 10;       // 使用
+
+public static &lt;T&gt; R&lt;T&gt; ok(T data)
+//               ↑ 声明
+//                  ↑ 使用    ↑ 使用</code></pre>
+        <p><strong>绑定时机</strong>：方法调用时确定。<code>R.ok("hello")</code> 调用时，编译器从实参推断 T=String。</p>
+        <p><strong>适用范围</strong>：仅该方法签名和方法体内。方法返回后 T 就"消亡"。</p>
+
+        <h3 id="static-restriction">3.3 为什么静态方法不能用类级泛型</h3>
+        <p>核心原因：<strong>类级泛型在实例化时才确定，而静态方法不依赖任何实例。</strong></p>
+<pre><code class="language-java">R&lt;String&gt;  r1 = new R&lt;&gt;(...);   // 实例1：T = String
+R&lt;Integer&gt; r2 = new R&lt;&gt;(...);   // 实例2：T = Integer</code></pre>
+        <p>同一个类 <code>R</code> 可以同时存在 T=String 和 T=Integer 的实例。静态方法 <code>R.ok()</code> 属于类本身，没有 <code>this</code>，不携带任何实例的类型信息。如果它试图使用"类上的 T"，编译器无法选择——该选 String 还是 Integer？</p>
+        <p>Java 编译器的规则：</p>
+<pre><code class="language-java">// 编译错误：静态方法不能引用类级泛型参数
+public class R&lt;T&gt; {
+    public static R&lt;T&gt; ok(T data) { ... }
+    // error: non-static type T cannot be referenced from a static context
+}
+
+// 正确：静态方法自己声明一个新的 &lt;T&gt;
+public class R&lt;T&gt; {
+    public static &lt;T&gt; R&lt;T&gt; ok(T data) { ... }
+}</code></pre>
+
+        <h3 id="same-name">3.4 "同名 T"不等于"同一个 T"</h3>
+        <p>类级 <code>&lt;T&gt;</code> 和方法级 <code>&lt;T&gt;</code> 是完全独立的类型变量，只是恰好都叫 T。把方法级的泛型换个名字，语义完全不变：</p>
+<pre><code class="language-java">public class R&lt;T&gt; {                    // 类级 T
+    public static &lt;U&gt; R&lt;U&gt; ok(U data) { // 方法级 U —— 和类级 T 毫无关系
+        return new R&lt;&gt;(200, "success", data);
+    }
+}</code></pre>
+        <p>之所以都写 T，纯粹是命名惯例（T / E / K / V），不代表关联。</p>
+
+        <h3 id="type-inference">3.5 类型推断与钻石操作符</h3>
+        <p><strong>类型推断</strong>：编译器从上下文（实参类型、目标类型、链式调用）自动推断类型参数，大多数时候不需要显式指定。</p>
+<pre><code class="language-java">// 方法级泛型推断
+R&lt;String&gt; r = R.ok("hello");
+// 编译器看到 "hello" 是 String → 推断 T = String
+// → ok(String data) → 返回 R&lt;String&gt;
+
+// 类级泛型推断（钻石操作符）
+List&lt;String&gt; list = new ArrayList&lt;&gt;();
+//            ↑ 指定 E=String    ↑ &lt;&gt; 编译器从左边推断</code></pre>
+        <p><strong>需要显式指定的场景</strong>：</p>
+        <table>
+          <thead>
+            <tr><th>场景</th><th>原因</th><th>写法</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>推断结果不符合预期</td><td>编译器取最具体类型，但你想要父类</td><td><code>R.&lt;Object&gt;ok("hello")</code></td></tr>
+            <tr><td>传入 null</td><td>null 无法推断类型</td><td><code>R.&lt;String&gt;ok(null)</code></td></tr>
+            <tr><td>链式调用推断链断裂</td><td>后续步骤依赖类型信息</td><td><code>R.&lt;String&gt;ok(null).getData()</code></td></tr>
+            <tr><td>公共 API 可读性</td><td>虽然能推断，但显式更清晰</td><td><code>R.&lt;UserVO&gt;ok(userVO)</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="raw-type">3.6 裸类型</h3>
+        <p>不带泛型参数的用法，是 JDK 1.5 之前的历史遗留：</p>
+<pre><code class="language-java">List list = new ArrayList();     // 没有指定 E
+list.add("hello");
+list.add(123);                   // 编译通过！什么都能塞
+list.add(new User());
+
+String s = (String) list.get(1); // 必须强转
+// 运行时：ClassCastException —— 实际是 Integer</code></pre>
+        <table>
+          <thead>
+            <tr><th></th><th>带泛型 <code>List&lt;String&gt;</code></th><th>裸类型 <code>List</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>编译期检查</td><td>只能放 String</td><td>什么都能放</td></tr>
+            <tr><td>取值</td><td>直接拿到 String</td><td>必须强转</td></tr>
+            <tr><td>运行时安全</td><td>保证</td><td>可能 ClassCastException</td></tr>
+            <tr><td>编译警告</td><td>无</td><td>unchecked 警告</td></tr>
+          </tbody>
+        </table>
+        <p>新代码永远不要用裸类型。</p>
+
+        <h3 id="invariance">3.7 泛型不变性</h3>
+        <p>泛型是<strong>不变的</strong>（invariant）：<code>List&lt;String&gt;</code> 不是 <code>List&lt;Object&gt;</code> 的子类。</p>
+<pre><code class="language-java">List&lt;String&gt; strList = new ArrayList&lt;&gt;();
+List&lt;Object&gt; objList = new ArrayList&lt;&gt;();
+objList = strList;   // 编译报错</code></pre>
+        <p>原因：如果允许赋值，可以往"声明为 <code>List&lt;Object&gt;</code>"的引用中塞入非 String 类型，而实际存储的是 String 列表，取值时就会爆炸：</p>
+<pre><code class="language-java">// 假设允许赋值
+List&lt;Object&gt; objList = strList;
+objList.add(123);           // 往里面塞了 Integer
+String s = strList.get(0);  // ClassCastException！</code></pre>
+        <p>对比：Java 数组是<strong>协变的</strong>（covariant），<code>String[]</code> 是 <code>Object[]</code> 的子类。但数组在运行时检查元素类型（ArrayStoreException），泛型在编译期检查（编译错误）。泛型选择编译期检查更安全。</p>
+
+        <h3 id="wildcards">3.8 通配符与 PECS</h3>
+        <p>通配符解决不变性带来的灵活性不足。</p>
+
+        <h4>无界通配符 <code>?</code></h4>
+<pre><code class="language-java">List&lt;?&gt; list = new ArrayList&lt;String&gt;();
+list = new ArrayList&lt;Integer&gt;();
+// 只知道是个 List，不关心元素类型
+Object o = list.get(0);  // 能读（一定是 Object）
+list.add("x");           // 不能写</code></pre>
+
+        <h4>上界通配符 <code>? extends T</code>（只读）</h4>
+<pre><code class="language-java">List&lt;? extends Number&gt; list = new ArrayList&lt;Integer&gt;();
+list = new ArrayList&lt;Double&gt;();
+list = new ArrayList&lt;Number&gt;();
+
+Number n = list.get(0);   // 能读（一定是 Number 或子类）
+list.add(123);            // 不能写（编译器不知道具体类型）</code></pre>
+        <p>用途：只需要<strong>读取</strong>集合内容时使用。</p>
+
+        <h4>下界通配符 <code>? super T</code>（只写）</h4>
+<pre><code class="language-java">List&lt;? super Integer&gt; list = new ArrayList&lt;Integer&gt;();
+list = new ArrayList&lt;Object&gt;();
+
+list.add(123);             // 能写（一定是 Integer 或父类容器，能安全放入）
+Object o = list.get(0);    // 只能拿到 Object</code></pre>
+        <p>用途：只需要<strong>写入</strong>集合时使用。</p>
+
+        <h4>PECS 原则</h4>
+        <p><strong>Producer Extends, Consumer Super</strong>：</p>
+        <ul>
+          <li>读数据（生产者）→ <code>? extends T</code></li>
+          <li>写数据（消费者）→ <code>? super T</code></li>
+        </ul>
+<pre><code class="language-java">// 经典例子：把 src 的元素复制到 dest
+public static &lt;T&gt; void copy(List&lt;? super T&gt; dest,    // dest 只写 → super
+                            List&lt;? extends T&gt; src) {  // src 只读 → extends
+    for (int i = 0; i &lt; src.size(); i++) {
+        dest.set(i, src.get(i));
+    }
+}</code></pre>
+        <p>通配符总览：</p>
+        <table>
+          <thead>
+            <tr><th>写法</th><th>能读</th><th>能写</th><th>典型场景</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>List&lt;String&gt;</code></td><td>String</td><td>String</td><td>普通使用</td></tr>
+            <tr><td><code>List&lt;?&gt;</code></td><td>Object</td><td>不能写</td><td>只关心"是个 List"</td></tr>
+            <tr><td><code>List&lt;? extends Number&gt;</code></td><td>Number</td><td>不能写</td><td>只读，元素是 Number 子类</td></tr>
+            <tr><td><code>List&lt;? super Integer&gt;</code></td><td>Object</td><td>Integer</td><td>只写，容器能装 Integer</td></tr>
+          </tbody>
+        </table>
+
+        <h3 id="erasure">3.9 类型擦除</h3>
+        <p>Java 泛型在编译后会被<strong>擦除</strong>（type erasure）：类型参数 T 变成 Object（或上界），编译器在需要的地方自动插入 <code>checkcast</code> 指令保证类型安全。</p>
+<pre><code class="language-java">// 你写的代码
+List&lt;String&gt; list = new ArrayList&lt;&gt;();
+list.add("hello");
+String s = list.get(0);
+
+// 编译后（擦除后）
+List list = new ArrayList();
+list.add("hello");
+String s = (String) list.get(0);  // 编译器插入 checkcast</code></pre>
+        <p>后果：</p>
+        <ul>
+          <li>运行时无法获取泛型类型信息（<code>list.getClass()</code> 返回 <code>ArrayList.class</code>，不是 <code>ArrayList&lt;String&gt;.class</code>）</li>
+          <li>不能 <code>new T()</code>、<code>new T[]</code>、<code>instanceof T</code></li>
+          <li>不能创建泛型数组：<code>new List&lt;String&gt;[10]</code>（编译错误）</li>
+          <li>静态方法 <code>toArray(T[] a)</code> 需要传入数组而非直接创建，正是因为擦除导致方法内部无法知道 T 的具体类型</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="example">
+        <h2 id="example">4. 贯穿示例：R&lt;T&gt; 统一响应类</h2>
+<pre><code class="language-java">public class R&lt;T&gt; {                    // 类级泛型 T：绑定到实例
+
+    private int code;
+    private String msg;
+    private T data;                    // 字段使用类级 T
+
+    private R(int code, String msg, T data) {
+        this.code = code;
+        this.msg  = msg;
+        this.data = data;
+    }
+
+    // 静态工厂方法：自己声明方法级泛型 &lt;T&gt;
+    public static &lt;T&gt; R&lt;T&gt; ok(T data) {
+        return new R&lt;&gt;(200, "success", data);
+    }
+
+    public static &lt;T&gt; R&lt;T&gt; fail(int code, String msg) {
+        return new R&lt;&gt;(code, msg, null);
+    }
+}</code></pre>
+        <p><strong>两个 T 的角色对比</strong>：</p>
+        <table>
+          <thead>
+            <tr><th></th><th>类级 <code>T</code>（<code>class R&lt;T&gt;</code>）</th><th>方法级 <code>T</code>（<code>static &lt;T&gt; ...</code>）</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>绑定时机</td><td><code>new R&lt;String&gt;()</code> 实例化时</td><td><code>R.ok("hello")</code> 调用时</td></tr>
+            <tr><td>生命周期</td><td>绑在整个实例上</td><td>只在那一次方法调用中有效</td></tr>
+            <tr><td>谁能用</td><td>实例字段、实例方法</td><td>仅该方法签名和方法体内</td></tr>
+            <tr><td>静态方法能用吗</td><td>不能</td><td>必须自己声明</td></tr>
+            <tr><td>相互关系</td><td>独立</td><td>独立</td></tr>
+          </tbody>
+        </table>
+        <p><strong>调用时的类型推断过程</strong>：</p>
+<pre><code class="language-java">R&lt;String&gt; r = R.ok("hello");</code></pre>
+        <ol>
+          <li>编译器看到 <code>R.ok("hello")</code>，实参 <code>"hello"</code> 类型是 <code>String</code></li>
+          <li>推断方法级 <code>&lt;T&gt;</code> → <code>T = String</code></li>
+          <li>方法签名展开为 <code>static R&lt;String&gt; ok(String data)</code></li>
+          <li>返回 <code>R&lt;String&gt;</code>，赋给左边</li>
+          <li>整个过程完全不涉及类级 <code>T</code></li>
+        </ol>
+        <p><strong>去掉方法级 <code>&lt;T&gt;</code> 的危险</strong>：</p>
+<pre><code class="language-java">// 危险写法：去掉 &lt;T&gt;，返回裸类型 R
+public static R ok(Object data) { ... }
+
+R&lt;String&gt; r = R.ok(123);  // 编译通过但类型撒谎
+String s = r.getData();    // ClassCastException 运行时爆炸</code></pre>
+        <p>而正确写法在编译期就能拦住：</p>
+<pre><code class="language-java">R&lt;String&gt; r = R.ok(123);  // 编译错误：ok(Integer) 无法赋给 R&lt;String&gt;</code></pre>
+      </section>
+
+      <section aria-labelledby="collections">
+        <h2 id="collections">5. 集合中的泛型：List、Map、Set</h2>
+
+        <h3 id="jdk-declarations">5.1 JDK 源码中的泛型声明</h3>
+<pre><code class="language-java">public interface List&lt;E&gt; extends Collection&lt;E&gt; {       // 类级泛型 E
+    boolean add(E e);                                  // 使用 E
+    E get(int index);                                  // 使用 E
+    &lt;T&gt; T[] toArray(T[] a);                            // 方法级泛型 T —— 和类级 E 独立
+    static &lt;E&gt; List&lt;E&gt; of(E... elements) { ... }       // 方法级泛型 E
+}
+
+public interface Map&lt;K, V&gt; {                           // 两个类级泛型
+    V put(K key, V value);
+    V get(Object key);                                 // 参数是 Object 不是 K
+    Set&lt;K&gt; keySet();
+    Collection&lt;V&gt; values();
+    Set&lt;Map.Entry&lt;K, V&gt;&gt; entrySet();                   // 嵌套泛型
+}
+
+public interface Set&lt;E&gt; extends Collection&lt;E&gt; {
+    boolean add(E e);
+    boolean addAll(Collection&lt;? extends E&gt; c);         // 通配符
+}</code></pre>
+
+        <h3 id="toarray">5.2 List 的方法级泛型：toArray</h3>
+<pre><code class="language-java">// JDK 签名
+&lt;T&gt; T[] toArray(T[] a);
+//  ↑ 声明     ↑ 使用</code></pre>
+        <p>这个 <code>&lt;T&gt;</code> 和 <code>List&lt;E&gt;</code> 的 <code>E</code> 完全独立。因为 <code>toArray</code> 需要返回具体类型的数组，而 E 在运行时已擦除为 Object，必须通过方法级泛型让调用者告诉它"我要什么类型的数组"：</p>
+<pre><code class="language-java">List&lt;String&gt; list = new ArrayList&lt;&gt;();
+list.add("a"); list.add("b");
+
+String[] arr = list.toArray(new String[0]);    // T 推断为 String
+Object[] objArr = list.toArray(new Object[0]); // T 推断为 Object</code></pre>
+
+        <h3 id="list-of">5.3 List.of 的方法级泛型</h3>
+<pre><code class="language-java">// JDK 签名
+static &lt;E&gt; List&lt;E&gt; of(E... elements) { ... }</code></pre>
+<pre><code class="language-java">List&lt;String&gt;  strs = List.of("a", "b", "c");    // E 推断为 String
+List&lt;Integer&gt; nums = List.of(1, 2, 3);          // E 推断为 Integer</code></pre>
+
+        <h3 id="map-nested">5.4 Map 的嵌套泛型</h3>
+<pre><code class="language-java">Map&lt;String, List&lt;User&gt;&gt; map = new HashMap&lt;&gt;();
+//     ↑      ↑     ↑
+//     K      │     │ V = List&lt;User&gt;
+//            │ List 的 E = User
+//            └ 嵌套泛型
+
+map.put("admins", Arrays.asList(
+    new User("admin1"),
+    new User("admin2")
+));
+
+List&lt;User&gt; admins = map.get("admins");
+
+// entrySet 的返回类型
+Set&lt;Map.Entry&lt;K, V&gt;&gt; entrySet();
+//  ↑      ↑         ↑
+//  Set的E  Map内部类  Map的两个泛型
+
+for (Map.Entry&lt;String, List&lt;User&gt;&gt; entry : map.entrySet()) {
+    String key = entry.getKey();          // String
+    List&lt;User&gt; value = entry.getValue();  // List&lt;User&gt;
+}</code></pre>
+
+        <h3 id="collection-compare">5.5 集合泛型对比</h3>
+        <table>
+          <thead>
+            <tr><th></th><th><code>List&lt;E&gt;</code></th><th><code>Map&lt;K,V&gt;</code></th><th><code>Set&lt;E&gt;</code></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>类级泛型</td><td>E（元素类型）</td><td>K, V（键、值类型）</td><td>E（元素类型）</td></tr>
+            <tr><td>方法级泛型</td><td><code>toArray(T[])</code>, <code>of(E...)</code></td><td>无典型</td><td>继承自 Collection</td></tr>
+            <tr><td>通配符使用</td><td><code>List&lt;? extends Number&gt;</code></td><td><code>Map&lt;?, ?&gt;</code></td><td><code>Set&lt;? extends E&gt;</code></td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="confusion">
+        <h2 id="confusion">6. 易混概念</h2>
+        <table>
+          <thead>
+            <tr><th>概念 A</th><th>概念 B</th><th>核心区别</th><th>选择依据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>类级泛型 <code>T</code></td><td>方法级泛型 <code>T</code></td><td>绑定时机不同（实例化 vs 调用），作用域不同</td><td>静态方法必须用方法级；实例方法可用类级</td></tr>
+            <tr><td><code>? extends T</code></td><td><code>? super T</code></td><td>extends 只读，super 只写</td><td>读用 extends，写用 super（PECS）</td></tr>
+            <tr><td>裸类型 <code>List</code></td><td>泛型 <code>List&lt;String&gt;</code></td><td>裸类型无编译期检查，运行时可能爆炸</td><td>永远用泛型</td></tr>
+            <tr><td>数组协变</td><td>泛型不变</td><td>数组 <code>String[]</code> 是 <code>Object[]</code> 子类；泛型 <code>List&lt;String&gt;</code> 不是 <code>List&lt;Object&gt;</code> 子类</td><td>泛型更安全（编译期检查）</td></tr>
+            <tr><td>类型参数 <code>T</code></td><td>通配符 <code>?</code></td><td>T 是声明一个可使用的类型变量；? 是引用一个未知类型</td><td>需要多次引用同一类型用 T；只接受任意类型用 ?</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="pitfalls">
+        <h2 id="pitfalls">7. 常见误区与边界</h2>
+        <div class="pitfall">
+          <p><strong>误区 1</strong>：类级 T 和方法级 T 是同一个类型变量。<br>
+          <strong>正确理解</strong>：它们是完全独立的类型变量，只是恰好同名。换名后语义不变。</p>
+        </div>
+        <div class="pitfall">
+          <p><strong>误区 2</strong>：静态方法可以使用类上的泛型参数。<br>
+          <strong>正确理解</strong>：静态方法没有实例，无法获取实例携带的类型信息。必须自己声明方法级泛型。</p>
+        </div>
+        <div class="pitfall">
+          <p><strong>误区 3</strong>：<code>List&lt;String&gt;</code> 是 <code>List&lt;Object&gt;</code> 的子类。<br>
+          <strong>正确理解</strong>：泛型是不变的，两者没有父子关系。这是为了保证类型安全。</p>
+        </div>
+        <div class="pitfall">
+          <p><strong>误区 4</strong>：泛型类型信息在运行时仍然存在。<br>
+          <strong>正确理解</strong>：类型擦除后 T 变成 Object，运行时无法获取泛型类型信息。<code>new T()</code>、<code>instanceof T</code> 都不允许。</p>
+        </div>
+        <div class="pitfall">
+          <p><strong>误区 5</strong>：使用泛型时必须显式指定类型参数。<br>
+          <strong>正确理解</strong>：大多数时候编译器会自动推断。只有在推断不出或需要精确控制时才显式指定。</p>
+        </div>
+        <div class="pitfall">
+          <p><strong>边界</strong>：<code>Map.get(Object key)</code> 的参数是 <code>Object</code> 而不是 <code>K</code>。<br>
+          <strong>原因</strong>：这是有意设计——允许传入任何对象作为 key 查找，找不到返回 null 即可。如果参数是 K，则只能传入声明类型的 key，灵活性不足。</p>
+        </div>
+      </section>
+
+      <section aria-labelledby="cheatsheet">
+        <h2 id="cheatsheet">8. 速查</h2>
+        <table>
+          <thead>
+            <tr><th>目标</th><th>做法</th><th>关键条件</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>声明类级泛型</td><td><code>class R&lt;T&gt;</code></td><td>T 绑定到实例</td></tr>
+            <tr><td>声明方法级泛型</td><td><code>static &lt;T&gt; R&lt;T&gt; ok(T data)</code></td><td>T 绑定到方法调用</td></tr>
+            <tr><td>使用泛型不写类型</td><td>依赖编译器推断</td><td>实参类型可推断时</td></tr>
+            <tr><td>钻石操作符</td><td><code>new ArrayList&lt;&gt;()</code></td><td>编译器从左边推断</td></tr>
+            <tr><td>只读集合</td><td><code>List&lt;? extends T&gt;</code></td><td>PECS: Producer Extends</td></tr>
+            <tr><td>只写集合</td><td><code>List&lt;? super T&gt;</code></td><td>PECS: Consumer Super</td></tr>
+            <tr><td>避免裸类型</td><td>永远带泛型参数</td><td>新代码不要用裸类型</td></tr>
+            <tr><td>运行时获取泛型类型</td><td>不可能</td><td>类型擦除</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section aria-labelledby="memory">
+        <h2 id="memory">9. 记忆主线</h2>
+        <ol>
+          <li><strong>类级泛型跟实例走，方法级泛型跟调用走</strong>——静态方法必须自声明。</li>
+          <li><strong>同名只是命名惯例</strong>——类级 T 和方法级 T 是独立变量，换名语义不变。</li>
+          <li><strong>一个声明，多次引用</strong>——<code>&lt;T&gt;</code> 是声明，<code>R&lt;T&gt;</code> 和 <code>T data</code> 是使用。</li>
+          <li><strong>编译器推断，通常不用写</strong>——钻石操作符 <code>&lt;&gt;</code> 和方法调用推断。</li>
+          <li><strong>泛型不变</strong>——<code>List&lt;String&gt;</code> 不是 <code>List&lt;Object&gt;</code> 的子类。</li>
+          <li><strong>PECS</strong>——读用 extends，写用 super。</li>
+          <li><strong>类型擦除</strong>——运行时 T 变成 Object，编译器插入 checkcast。</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="quiz">
+        <h2 id="quiz">10. 自测问题</h2>
+        <ol>
+          <li>为什么静态方法不能使用类级泛型参数？请从实例化时机和 <code>this</code> 的角度解释。</li>
+          <li><code>public static &lt;T&gt; R&lt;T&gt; ok(T data)</code> 中出现了三个 T，它们分别是什么角色？</li>
+          <li>以下代码能否编译通过？为什么？
+<pre><code class="language-java">List&lt;Object&gt; list = new ArrayList&lt;String&gt;();</code></pre>
+          </li>
+          <li>PECS 原则中，"Producer" 和 "Consumer" 分别指什么？请用一个 <code>copy</code> 方法说明。</li>
+          <li>类型擦除会带来哪些限制？列举至少三个。</li>
+          <li><code>Map.get(Object key)</code> 的参数为什么是 <code>Object</code> 而不是 <code>K</code>？</li>
+        </ol>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    'use strict';
+
+    var scrollFrame = 0;
+    var runtimeErrorCount = 0;
+
+    function recordRuntimeError() {
+      runtimeErrorCount += 1;
+      document.documentElement.dataset.runtimeErrorCount = String(runtimeErrorCount);
+    }
+
+    window.addEventListener('error', recordRuntimeError);
+    window.addEventListener('unhandledrejection', recordRuntimeError);
+
+    function updatePrismTheme() {
+      var isDark = document.documentElement.dataset.theme === 'dark';
+      var lightTheme = document.getElementById('prism-light');
+      var darkTheme = document.getElementById('prism-dark');
+      if (lightTheme) lightTheme.disabled = isDark;
+      if (darkTheme) darkTheme.disabled = !isDark;
+    }
+
+    function toggleTheme() {
+      var button = document.querySelector('.theme-toggle');
+      var html = document.documentElement;
+      var nextTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      html.dataset.theme = nextTheme;
+      button.textContent = nextTheme === 'dark' ? 'Light theme' : 'Dark theme';
+      button.setAttribute('aria-label', nextTheme === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+      updatePrismTheme();
+    }
+
+    function updateScrollSpy() {
+      scrollFrame = 0;
+      var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+      if (!links.length) return;
+      var headings = links.map(function (link) {
+        return document.getElementById(link.getAttribute('href').slice(1));
+      }).filter(Boolean);
+      if (!headings.length) return;
+
+      var marker = window.scrollY + Math.min(180, window.innerHeight * 0.3);
+      var active = headings[0];
+      headings.forEach(function (heading) {
+        if (heading.offsetTop <= marker) active = heading;
+      });
+
+      links.forEach(function (link) {
+        var isActive = link.getAttribute('href') === '#' + active.id;
+        link.classList.toggle('toc-active', isActive);
+        if (isActive) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
+    }
+
+    function scheduleScrollSpy() {
+      if (!scrollFrame) scrollFrame = window.requestAnimationFrame(updateScrollSpy);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelector('.theme-toggle').addEventListener('click', toggleTheme);
+      window.addEventListener('scroll', scheduleScrollSpy, { passive: true });
+      window.addEventListener('resize', scheduleScrollSpy);
+
+      if (window.Prism && window.Prism.plugins && window.Prism.plugins.autoloader) {
+        window.Prism.plugins.autoloader.languages_path = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/';
+        window.Prism.highlightAll();
+      }
+
+      updatePrismTheme();
+      updateScrollSpy();
+      document.documentElement.dataset.renderStatus = 'ready';
+    });
+  </script>
+</body>
+</html>
